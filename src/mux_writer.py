@@ -153,7 +153,7 @@ async def subscribe_orderbook():
                     break
                 try:
                     data = await receive_with_timeout(ws, timeout)
-                except asyncio.TimeoutError:
+                except asyncio.TimeoutError, json.decoder.JSONDecodeError:
                     continue
 
             # async for message in ws:
@@ -185,6 +185,7 @@ async def subscribe_orderbook():
                                 btc_price = global_btc_price
                             if btc_price == 0:
                                 continue
+
                             print(f"now: {timestamp} start: {start_time} end: {start_time + Interval} open: {open_price} price: {btc_price} best_bid:{best_bid} best_ask: {best_ask}")
                     # else:
                     #     # 可注释掉，避免刷屏
