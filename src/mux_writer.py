@@ -111,7 +111,8 @@ async def btc_price_stream(option: TaskOption):
                                 option.updatePrice(float(price))
                             # else:
                             #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        print(e)
                         pass
                     except Exception as e:
                         print(f"解析异常: {e}")
@@ -187,7 +188,8 @@ async def subscribe_orderbook(option: TaskOption):
                             break
                         try:
                             data = await receive_with_timeout(ws, timeout)
-                        except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
+                        except (asyncio.TimeoutError, json.decoder.JSONDecodeError) as e:
+                            print(e)
                             continue
                         try:
                             msg_type = data.get("event_type")
