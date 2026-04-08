@@ -181,7 +181,7 @@ async def subscribe_orderbook():
 
                         except Exception as e:
                             print("解析错误:", e)
-        except websockets.exceptions.ConnectionClosedError as e:
+        except Exception as e:
             print(e)
 
 
