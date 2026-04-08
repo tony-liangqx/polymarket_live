@@ -19,13 +19,16 @@ async def fetch_open_price(url_template, star_time, end_time):
     start_utc_time = datetime.fromtimestamp(star_time, timezone.utc).isoformat().replace("+00:00", "Z")
     end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
     url = url_template % (start_utc_time, end_utc_time)
-    async with aiohttp.ClientSession(trust_env=True) as session:
-        async with session.get(url) as response:
-            data = await response.json()
-            price = data.get("openPrice")
-            if price is None:
-                print(json.dumps(data))
-            return data.get("openPrice")
+    while True:
+        async with aiohttp.ClientSession(trust_env=True, timeout=3) as session:
+            async with session.get(url) as response:
+                data = await response.json()
+                price = data.get("openPrice")
+                if price is None:
+                    print(url, json.dumps(data))
+                    await asyncio.sleep(1)
+                    continue
+                return data.get("openPrice")
 
 async def btc_price_stream():
     url = "wss://ws-live-data.polymarket.com"
