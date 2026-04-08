@@ -33,11 +33,13 @@ class TaskOption(object):
 
     def getOpenPriceUrl(self) -> str:
         start_time, end_time = self.getTime()
-        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_time, self.variant, end_time)
+        start_utc_time = datetime.fromtimestamp(start_time, timezone.utc).isoformat().replace("+00:00", "Z")
+        end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
+        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_utc_time, self.variant, end_utc_time)
 
     def getSlug(self) -> str:
         start_time, _ = self.getTime()
-        return self.event_slug % start_time
+        return self.event_slug % (start_time,)
 
     def getPrice(self) -> float:
         return self.price
@@ -48,10 +50,7 @@ class TaskOption(object):
     def getSymbol(self) -> str:
         return self.symbol
 
-async def fetch_open_price(url_template, star_time, end_time):
-    start_utc_time = datetime.fromtimestamp(star_time, timezone.utc).isoformat().replace("+00:00", "Z")
-    end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
-    url = url_template % (start_utc_time, end_utc_time)
+async def fetch_open_price(url):
     while True:
         async with aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3)) as session:
             async with session.get(url) as response:
@@ -163,7 +162,7 @@ async def subscribe_orderbook(option: TaskOption):
             # start_time = int(time.time() // Interval_5m * Interval_5m)
             # event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
             asset_ids = await get_asset_ids(event_slug)
-            open_price = await fetch_open_price(open_price_url, start_time, end_time)
+            open_price = await fetch_open_price(open_price_url)
             # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
@@ -193,7 +192,7 @@ async def subscribe_orderbook(option: TaskOption):
                             open_price_url = option.getOpenPriceUrl()
                             # start_time = int(now // Interval_5m * Interval_5m)
                             # event_slug = "btc-updown-5m-%s" % start_time
-                            open_price = await fetch_open_price(open_price_url, start_time, end_time)
+                            open_price = await fetch_open_price(open_price_url)
                             # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
                             print(f"⏰ 切换到新的 slug: {event_slug}")
                             break
