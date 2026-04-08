@@ -110,12 +110,9 @@ async def get_asset_ids(slug) -> list[str]:
 
 # ========== 带超时的接收 ==========
 async def receive_with_timeout(websocket, timeout):
-    try:
-        # await 加上超时
-        message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
-        return json.loads(message)
-    except asyncio.TimeoutError:
-        raise  # 超时抛出，让外层捕获
+    # await 加上超时
+    message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
+    return json.loads(message)
 
 
 async def subscribe_orderbook():
@@ -153,7 +150,7 @@ async def subscribe_orderbook():
                     break
                 try:
                     data = await receive_with_timeout(ws, timeout)
-                except asyncio.TimeoutError, json.decoder.JSONDecodeError:
+                except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                     continue
 
             # async for message in ws:
