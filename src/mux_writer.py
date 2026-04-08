@@ -12,9 +12,41 @@ OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol
 OPEN_PRICE_URL_TEMPLATE_ = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
 
 
-global_btc_price = 0
 # 5m
 Interval_5m = 300
+
+class TaskOption(object):
+    def __init__(self, interval: int, symbol: str):
+        self.interval = interval
+        self.symbol = symbol
+        self.price = 0
+        if interval == 300:
+            self.event_slug = f"{symbol}-updown-5m-%s"
+            self.variant="fiveminute"
+        elif interval == 900:
+             self.event_slug = f"{symbol}-updown-15m-%s"
+             self.variant="fiveminute"
+
+    def getTime(self) -> tuple[int, int]:
+        start_time = int(time.time() // self.interval * self.interval)
+        return start_time, start_time + self.interval
+
+    def getOpenPriceUrl(self) -> str:
+        start_time, end_time = self.getTime()
+        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_time, self.variant, end_time)
+
+    def getSlug(self) -> str:
+        start_time, _ = self.getTime()
+        return self.event_slug % start_time
+
+    def getPrice(self) -> float:
+        return self.price
+
+    def updatePrice(self, price:float):
+        self.price = price
+
+    def getSymbol(self) -> str:
+        return self.symbol
 
 async def fetch_open_price(url_template, star_time, end_time):
     start_utc_time = datetime.fromtimestamp(star_time, timezone.utc).isoformat().replace("+00:00", "Z")
@@ -119,39 +151,6 @@ async def receive_with_timeout(websocket, timeout):
     # await 加上超时
     message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
     return json.loads(message)
-
-class TaskOption(object):
-    def __init__(self, interval: int, symbol: str):
-        self.interval = interval
-        self.symbol = symbol
-        self.price = 0
-        if interval == 300:
-            self.event_slug = f"{symbol}-updown-5m-%s"
-            self.variant="fiveminute"
-        elif interval == 900:
-             self.event_slug = f"{symbol}-updown-15m-%s"
-             self.variant="fiveminute"
-
-    def getTime(self) -> tuple[int, int]:
-        start_time = int(time.time() // self.interval * self.interval)
-        return start_time, start_time + self.interval
-
-    def getOpenPriceUrl(self) -> str:
-        start_time, end_time = self.getTime()
-        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_time, self.variant, end_time)
-
-    def getSlug(self) -> str:
-        start_time, _ = self.getTime()
-        return self.event_slug % start_time
-
-    def getPrice(self) -> float:
-        return self.price
-
-    def updatePrice(self, price:float):
-        self.price = price
-
-    def getSymbol(self) -> str:
-        return self.symbol
 
 async def subscribe_orderbook(option: TaskOption):
     # 网络重连循环
