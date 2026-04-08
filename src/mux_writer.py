@@ -21,10 +21,10 @@ class TaskOption(object):
         self.symbol = symbol
         self.price = 0
         if interval == 300:
-            self.event_slug = f"{symbol}-updown-5m-%s"
+            self.event_slug = f"{symbol.lower()}-updown-5m-%s"
             self.variant="fiveminute"
         elif interval == 900:
-             self.event_slug = f"{symbol}-updown-15m-%s"
+             self.event_slug = f"{symbol.lower()}-updown-15m-%s"
              self.variant="fiveminute"
 
     def getTime(self) -> tuple[int, int]:
