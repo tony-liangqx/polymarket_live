@@ -8,8 +8,7 @@ import aiohttp
 
 WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
 MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
-OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=BTC&eventStartTime=%s&variant=fiveminute&endDate=%s"
-OPEN_PRICE_URL_TEMPLATE_ = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
+OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
 
 
 # 5m
@@ -35,7 +34,7 @@ class TaskOption(object):
         start_time, end_time = self.getTime()
         start_utc_time = datetime.fromtimestamp(start_time, timezone.utc).isoformat().replace("+00:00", "Z")
         end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
-        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_utc_time, self.variant, end_utc_time)
+        return OPEN_PRICE_URL_TEMPLATE % (self.symbol, start_utc_time, self.variant, end_utc_time)
 
     def getSlug(self) -> str:
         start_time, _ = self.getTime()
@@ -109,10 +108,6 @@ async def btc_price_stream(option: TaskOption):
                             ts = payload.get("timestamp") or data.get("timestamp")
 
                             if price and option.getSymbol() in symbol:
-                                # dt = datetime.fromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.now()
-                                #print(f"🟢 {dt.strftime('%H:%M:%S.%f')[:-3]} | BTC 价格: ${float(price):,.2f}   (symbol: {symbol})")
-                                # global global_btc_price
-                                # global_btc_price = float(price)
                                 option.updatePrice(float(price))
                             # else:
                             #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
@@ -159,11 +154,8 @@ async def subscribe_orderbook(option: TaskOption):
             event_slug = option.getSlug()
             open_price_url = option.getOpenPriceUrl()
 
-            # start_time = int(time.time() // Interval_5m * Interval_5m)
-            # event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
             asset_ids = await get_asset_ids(event_slug)
             open_price = await fetch_open_price(open_price_url)
-            # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -190,10 +182,7 @@ async def subscribe_orderbook(option: TaskOption):
                             start_time, end_time = option.getTime()
                             event_slug = option.getSlug()
                             open_price_url = option.getOpenPriceUrl()
-                            # start_time = int(now // Interval_5m * Interval_5m)
-                            # event_slug = "btc-updown-5m-%s" % start_time
                             open_price = await fetch_open_price(open_price_url)
-                            # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
                             print(f"⏰ 切换到新的 slug: {event_slug}")
                             break
                         try:
@@ -213,11 +202,10 @@ async def subscribe_orderbook(option: TaskOption):
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
                                     price = option.getPrice()
-                                    # btc_price = global_btc_price
                                     if price == 0:
                                         continue
 
-                                    print(f"now: {timestamp} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
+                                    print(f"{timestamp} {option.getSymbol()} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
 
                         except Exception as e:
                             print("解析错误:", e)
