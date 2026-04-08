@@ -9,8 +9,9 @@ import aiohttp
 WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
 MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
 OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=BTC&eventStartTime=%s&variant=fiveminute&endDate=%s"
+OPEN_PRICE_URL_TEMPLATE_ = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
 
-PriceLock = asyncio.Lock()
+
 global_btc_price = 0
 # 5m
 Interval_5m = 300
@@ -30,7 +31,7 @@ async def fetch_open_price(url_template, star_time, end_time):
                     continue
                 return data.get("openPrice")
 
-async def btc_price_stream():
+async def btc_price_stream(option: TaskOption):
     url = "wss://ws-live-data.polymarket.com"
 
     while True:
@@ -76,12 +77,12 @@ async def btc_price_stream():
                             price = payload.get("value") or payload.get("price")
                             ts = payload.get("timestamp") or data.get("timestamp")
 
-                            if price and "BTC" in symbol:
+                            if price and option.getSymbol() in symbol:
                                 # dt = datetime.fromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.now()
                                 #print(f"🟢 {dt.strftime('%H:%M:%S.%f')[:-3]} | BTC 价格: ${float(price):,.2f}   (symbol: {symbol})")
-                                async with PriceLock:
-                                    global global_btc_price
-                                    global_btc_price = float(price)
+                                # global global_btc_price
+                                # global_btc_price = float(price)
+                                option.updatePrice(float(price))
                             # else:
                             #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
                     except json.JSONDecodeError:
@@ -119,15 +120,52 @@ async def receive_with_timeout(websocket, timeout):
     message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
     return json.loads(message)
 
+class TaskOption(object):
+    def __init__(self, interval: int, symbol: str):
+        self.interval = interval
+        self.symbol = symbol
+        self.price = 0
+        if interval == 300:
+            self.event_slug = f"{symbol}-updown-5m-%s"
+            self.variant="fiveminute"
+        elif interval == 900:
+             self.event_slug = f"{symbol}-updown-15m-%s"
+             self.variant="fiveminute"
 
-async def subscribe_orderbook():
+    def getTime(self) -> tuple[int, int]:
+        start_time = int(time.time() // self.interval * self.interval)
+        return start_time, start_time + self.interval
+
+    def getOpenPriceUrl(self) -> str:
+        start_time, end_time = self.getTime()
+        return OPEN_PRICE_URL_TEMPLATE_ % (self.symbol, start_time, self.variant, end_time)
+
+    def getSlug(self) -> str:
+        start_time, _ = self.getTime()
+        return self.event_slug % start_time
+
+    def getPrice(self) -> float:
+        return self.price
+
+    def updatePrice(self, price:float):
+        self.price = price
+
+    def getSymbol(self) -> str:
+        return self.symbol
+
+async def subscribe_orderbook(option: TaskOption):
     # 网络重连循环
     while True:
         try:
-            start_time = int(time.time() // Interval_5m * Interval_5m)
-            event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
+            start_time, end_time = option.getTime()
+            event_slug = option.getSlug()
+            open_price_url = option.getOpenPriceUrl()
+
+            # start_time = int(time.time() // Interval_5m * Interval_5m)
+            # event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
             asset_ids = await get_asset_ids(event_slug)
-            open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
+            open_price = await fetch_open_price(open_price_url, start_time, end_time)
+            # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -147,13 +185,17 @@ async def subscribe_orderbook():
                     timestamp = 0
                     while True:
                         now = int(time.time())
-                        timeout = (start_time + Interval_5m) - now
+                        timeout = end_time - now
                         if timeout < 1:
                             # 下一轮
                             # 判断是否结束，开始新的订阅
-                            start_time = int(now // Interval_5m * Interval_5m)
-                            event_slug = "btc-updown-5m-%s" % start_time
-                            open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
+                            start_time, end_time = option.getTime()
+                            event_slug = option.getSlug()
+                            open_price_url = option.getOpenPriceUrl()
+                            # start_time = int(now // Interval_5m * Interval_5m)
+                            # event_slug = "btc-updown-5m-%s" % start_time
+                            open_price = await fetch_open_price(open_price_url, start_time, end_time)
+                            # open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
                             print(f"⏰ 切换到新的 slug: {event_slug}")
                             break
                         try:
@@ -172,12 +214,12 @@ async def subscribe_orderbook():
                                     timestamp = ts
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
-                                    async with PriceLock:
-                                        btc_price = global_btc_price
-                                    if btc_price == 0:
+                                    price = option.getPrice()
+                                    # btc_price = global_btc_price
+                                    if price == 0:
                                         continue
 
-                                    print(f"now: {timestamp} start: {start_time} end: {start_time + Interval_5m} open: {open_price} price: {btc_price} best_bid:{best_bid} best_ask: {best_ask}")
+                                    print(f"now: {timestamp} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
 
                         except Exception as e:
                             print("解析错误:", e)
@@ -189,8 +231,9 @@ async def subscribe_orderbook():
 if __name__ == "__main__":
     async def main():
         # 同时并发运行多个任务
+        btc5m = TaskOption(Interval_5m, "BTC")
         await asyncio.gather(
-            subscribe_orderbook(),
-            btc_price_stream(),
+            subscribe_orderbook(btc5m),
+            btc_price_stream(btc5m),
         )
     asyncio.run(main())
