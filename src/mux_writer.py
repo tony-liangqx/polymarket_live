@@ -15,13 +15,16 @@ global_btc_price = 0
 # 5m
 Interval_5m = 300
 
-async def fetch_get(url_template, star_time, end_time):
+async def fetch_open_price(url_template, star_time, end_time):
     start_utc_time = datetime.fromtimestamp(star_time, timezone.utc).isoformat().replace("+00:00", "Z")
     end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
     url = url_template % (start_utc_time, end_utc_time)
     async with aiohttp.ClientSession(trust_env=True) as session:
         async with session.get(url) as response:
             data = await response.json()
+            price = data.get("openPrice")
+            if price is None:
+                print(json.dumps(data))
             return data.get("openPrice")
 
 async def btc_price_stream():
@@ -121,7 +124,7 @@ async def subscribe_orderbook():
             start_time = int(time.time() // Interval_5m * Interval_5m)
             event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
             asset_ids = await get_asset_ids(event_slug)
-            open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
+            open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -147,7 +150,7 @@ async def subscribe_orderbook():
                             # 判断是否结束，开始新的订阅
                             start_time = int(now // Interval_5m * Interval_5m)
                             event_slug = "btc-updown-5m-%s" % start_time
-                            open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
+                            open_price = await fetch_open_price(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+Interval_5m)
                             print(f"⏰ 切换到新的 slug: {event_slug}")
                             break
                         try:
