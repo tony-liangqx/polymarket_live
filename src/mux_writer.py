@@ -20,7 +20,7 @@ async def fetch_open_price(url_template, star_time, end_time):
     end_utc_time = datetime.fromtimestamp(end_time, timezone.utc).isoformat().replace("+00:00", "Z")
     url = url_template % (start_utc_time, end_utc_time)
     while True:
-        async with aiohttp.ClientSession(trust_env=True, timeout=3) as session:
+        async with aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3)) as session:
             async with session.get(url) as response:
                 data = await response.json()
                 price = data.get("openPrice")
