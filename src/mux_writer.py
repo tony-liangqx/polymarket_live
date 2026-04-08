@@ -13,7 +13,7 @@ OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol
 PriceLock = asyncio.Lock()
 global_btc_price = 0
 # 5m
-Interval = 300
+Interval_5m = 300
 
 async def fetch_get(url_template, star_time, end_time):
     start_utc_time = datetime.fromtimestamp(star_time, timezone.utc).isoformat().replace("+00:00", "Z")
@@ -51,7 +51,6 @@ async def btc_price_stream():
                 async def heartbeat():
                     while True:
                         await asyncio.sleep(5)
-                        # if not ws.closed:
                         await ws.send("ping")
 
                 ping_task = asyncio.create_task(heartbeat())
@@ -72,7 +71,7 @@ async def btc_price_stream():
                             ts = payload.get("timestamp") or data.get("timestamp")
 
                             if price and "BTC" in symbol:
-                                dt = datetime.fromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.now()
+                                # dt = datetime.fromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.now()
                                 #print(f"🟢 {dt.strftime('%H:%M:%S.%f')[:-3]} | BTC 价格: ${float(price):,.2f}   (symbol: {symbol})")
                                 async with PriceLock:
                                     global global_btc_price
@@ -116,80 +115,70 @@ async def receive_with_timeout(websocket, timeout):
 
 
 async def subscribe_orderbook():
-    start_time = int(time.time() // Interval * Interval)
-    event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
-    asset_ids = await get_asset_ids(event_slug)
-    open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
+    # 网络重连循环
+    while True:
+        try:
+            start_time = int(time.time() // Interval_5m * Interval_5m)
+            event_slug = "btc-updown-5m-%s" % start_time    # 当前想监控的市场 slug
+            asset_ids = await get_asset_ids(event_slug)
+            open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
 
-    async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
+            async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
 
-        while True:
-            # 订阅消息（官方推荐格式）
-            sub_msg = {
-                "assets_ids": asset_ids,          # 必须传两个 token id（Up + Down）
-                "type": "market",
-                "custom_feature_enabled": True
-            }
+                while True:
+                    # 订阅消息（官方推荐格式）
+                    sub_msg = {
+                        "assets_ids": asset_ids,          # 必须传两个 token id（Up + Down）
+                        "type": "market",
+                        "custom_feature_enabled": True
+                    }
 
-            await ws.send(json.dumps(sub_msg))
-            print(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
+                    await ws.send(json.dumps(sub_msg))
+                    print(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
 
-            # 去重寄存器
-            timestamp = 0
-            while True:
-                now = int(time.time())
-                timeout = (start_time + Interval) - now
-                if timeout < 1:
-                    # 下一轮
-                    # 判断是否结束，开始新的订阅
-                    start_time = int(now // Interval * Interval)
-                    event_slug = "btc-updown-5m-%s" % start_time
-                    open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
-                    print(f"⏰ 切换到新的 slug: {event_slug}")
-                    break
-                try:
-                    data = await receive_with_timeout(ws, timeout)
-                except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
-                    continue
+                    # 去重寄存器
+                    timestamp = 0
+                    while True:
+                        now = int(time.time())
+                        timeout = (start_time + Interval_5m) - now
+                        if timeout < 1:
+                            # 下一轮
+                            # 判断是否结束，开始新的订阅
+                            start_time = int(now // Interval_5m * Interval_5m)
+                            event_slug = "btc-updown-5m-%s" % start_time
+                            open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
+                            print(f"⏰ 切换到新的 slug: {event_slug}")
+                            break
+                        try:
+                            data = await receive_with_timeout(ws, timeout)
+                        except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
+                            continue
+                        try:
+                            msg_type = data.get("event_type")
+                            if msg_type == "price_change":
+                                items = data.get('price_changes', [])
+                                for item in items:
+                                    ts = int(data.get('timestamp')) // 1000
+                                    # 去重: 只取一个点
+                                    if ts == timestamp:
+                                        continue
+                                    timestamp = ts
+                                    best_bid = item.get("best_bid")
+                                    best_ask = item.get("best_ask")
+                                    async with PriceLock:
+                                        btc_price = global_btc_price
+                                    if btc_price == 0:
+                                        continue
 
-            # async for message in ws:
-                # # 判断是否结束，开始新的订阅
-                # new_slug_time = int(time.time() // 300 * 300)
-                # if new_slug_time > start_time:
-                #     start_time = new_slug_time
-                #     event_slug = "btc-updown-5m-%s" % new_slug_time
-                #     open_price = await fetch_get(OPEN_PRICE_URL_TEMPLATE, start_time, start_time+300)
-                #     print(f"⏰ 切换到新的 slug: {event_slug}")
-                #     break
-                try:
-                    # data = json.loads(message)
-                    msg_type = data.get("event_type")
-                    if msg_type == "price_change":
-                        items = data.get('price_changes', [])
-                        for item in items:
-                            ts = int(data.get('timestamp')) // 1000
-                            # 去重: 只取一个点
-                            if ts == timestamp:
-                                continue
-                            timestamp = ts
-                            # price = item.get('price')
-                            # size = item.get('size')
-                            # side = item.get('side')
-                            best_bid = item.get("best_bid")
-                            best_ask = item.get("best_ask")
-                            async with PriceLock:
-                                btc_price = global_btc_price
-                            if btc_price == 0:
-                                continue
+                                    print(f"now: {timestamp} start: {start_time} end: {start_time + Interval_5m} open: {open_price} price: {btc_price} best_bid:{best_bid} best_ask: {best_ask}")
 
-                            print(f"now: {timestamp} start: {start_time} end: {start_time + Interval} open: {open_price} price: {btc_price} best_bid:{best_bid} best_ask: {best_ask}")
-                    # else:
-                    #     # 可注释掉，避免刷屏
-                    #     print(f"其他消息: {msg_type}")
+                        except Exception as e:
+                            print("解析错误:", e)
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(e)
 
-                except Exception as e:
-                    print("解析错误:", e)
+
 
 if __name__ == "__main__":
     async def main():
