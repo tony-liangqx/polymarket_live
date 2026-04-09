@@ -40,14 +40,19 @@ class TaskOption(object):
         self.symbol = symbol
 
         if interval == Interval_5m:
-            self.event_slug = f"{symbol.lower()}-updown-5m-%s"
-            self.variant="fiveminute"
+           self.event_slug = f"{symbol.lower()}-updown-5m-%s"
+           self.variant="fiveminute"
         elif interval == Interval_15m:
-             self.event_slug = f"{symbol.lower()}-updown-15m-%s"
-             self.variant="fifteen"
+            self.event_slug = f"{symbol.lower()}-updown-15m-%s"
+            self.variant="fifteen"
         elif interval == Interval_day:
-             self.event_slug = f"{symbol.lower()}-up-or-down-on-%s"
-             self.variant="daily"
+            if symbol == "BTC":
+                self.event_slug = f"bitcoin-up-or-down-on-%s"
+            elif symbol == "ETH":
+                self.event_slug = f"ethereum-up-or-down-on-%s"
+            else:
+                self.event_slug = f"{symbol.lower()}-up-or-down-on-%s"
+            self.variant="daily"
         else:
             raise Exception("interval type error")
 
@@ -64,7 +69,9 @@ class TaskOption(object):
     def getSlug(self) -> str:
         start_time, _ = self.getTime()
         if self.interval == Interval_day:
-            "april-9-2026"
+            # 特殊格式
+            # "bitcoin-up-or-down-on-april-9-2026"
+            # "ethereum-up-or-down-on-april-8"
             date_str = datetime.fromtimestamp(start_time).strftime("%B-%d-%Y").lower()
             return self.event_slug % (date_str,)
         return self.event_slug % (start_time,)
