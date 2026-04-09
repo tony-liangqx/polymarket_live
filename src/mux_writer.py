@@ -16,7 +16,7 @@ Interval_5m = 300
 Interval_15m = 900
 Interval_day = 86400
 
-GSession = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
+HTTP_SESSION: aiohttp.ClientSession | None = None
 
 class SymbolPrice(object):
     def __init__(self, *symbs:str):
@@ -73,7 +73,7 @@ class TaskOption(object):
 
 async def fetch_open_price(url):
     while True:
-        async with GSession.get(url) as response:
+        async with HTTP_SESSION.get(url) as response:
             data = await response.json()
             price = data.get("openPrice")
             if price is None:
@@ -231,6 +231,9 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
 
 if __name__ == "__main__":
     async def main():
+
+        HTTP_SESSION = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
+
         symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
 
         btc5m = TaskOption(Interval_5m, "BTC")
