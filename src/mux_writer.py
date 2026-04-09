@@ -147,7 +147,7 @@ async def price_stream(symbol_price: SymbolPrice):
 
 async def get_asset_ids(slug) -> list[str]:
     url = MARKET_URL + slug
-    async with GSession.get(url) as resp:
+    async with HTTP_SESSION.get(url) as resp:
         data = await resp.json()
         ids_raw = data.get("clobTokenIds", "[]")
         asset_ids = json.loads(ids_raw)
