@@ -72,7 +72,7 @@ class TaskOption(object):
             # 特殊格式
             # "bitcoin-up-or-down-on-april-9-2026"
             # "ethereum-up-or-down-on-april-8"
-            date_str = datetime.fromtimestamp(start_time).strftime("%B-%d-%Y").lower()
+            date_str = datetime.fromtimestamp(start_time).strftime("%B-%-d-%Y").lower()
             return self.event_slug % (date_str,)
         return self.event_slug % (start_time,)
 
@@ -261,6 +261,9 @@ if __name__ == "__main__":
         btcday = TaskOption(Interval_day, "BTC")
 
         eth5m = TaskOption(Interval_5m, "ETH")
+        eth15m = TaskOption(Interval_15m, "ETH")
+        ethday = TaskOption(Interval_day, "ETH")
+
         sol5m = TaskOption(Interval_5m, "SOL")
         xrp5m = TaskOption(Interval_5m, "XRP")
         doge5m = TaskOption(Interval_5m, "DOGE")
@@ -276,6 +279,8 @@ if __name__ == "__main__":
 
             # eth
             subscribe_orderbook(eth5m, symbolPrice),
+            subscribe_orderbook(eth15m, symbolPrice),
+            subscribe_orderbook(ethday, symbolPrice),
 
             # sol
             subscribe_orderbook(sol5m, symbolPrice),
