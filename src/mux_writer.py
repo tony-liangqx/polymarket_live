@@ -135,9 +135,8 @@ async def price_stream(symbol_price: SymbolPrice):
                             symbol = payload.get("symbol", "").upper()
                             price = payload.get("value") or payload.get("price")
                             ts = payload.get("timestamp") or data.get("timestamp")
-                            for symb in symbols:
-                                if price and symb in symbol:
-                                    symbol_price.updatePrice(symb, float(price))
+                            if price and symbol in symbols:
+                                symbol_price.updatePrice(symbol, float(price))
                             # else:
                             #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
                     except json.JSONDecodeError as e:
