@@ -232,6 +232,7 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
 if __name__ == "__main__":
     async def main():
 
+        global HTTP_SESSION
         HTTP_SESSION = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
 
         symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
