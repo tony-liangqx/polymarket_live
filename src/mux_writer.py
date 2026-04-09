@@ -221,10 +221,28 @@ if __name__ == "__main__":
         # 同时并发运行多个任务
         btc5m = TaskOption(Interval_5m, "BTC")
         eth5m = TaskOption(Interval_5m, "ETH")
+        sol5m = TaskOption(Interval_5m, "SOL")
+        xrp5m = TaskOption(Interval_5m, "XRP")
+        doge5m = TaskOption(Interval_5m, "DOGE")
         await asyncio.gather(
+            # BTC
             subscribe_orderbook(btc5m),
             btc_price_stream(btc5m),
+
+            # eth
             subscribe_orderbook(eth5m),
             btc_price_stream(eth5m),
+
+            # sol
+            subscribe_orderbook(sol5m),
+            btc_price_stream(sol5m),
+
+            # xrp
+            subscribe_orderbook(xrp5m),
+            btc_price_stream(xrp5m),
+
+            # doge
+            subscribe_orderbook(doge5m),
+            btc_price_stream(doge5m),
         )
     asyncio.run(main())
