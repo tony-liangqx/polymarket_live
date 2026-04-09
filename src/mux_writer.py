@@ -27,7 +27,7 @@ class TaskOption(object):
         elif interval == Interval_15m:
              self.event_slug = f"{symbol.lower()}-updown-15m-%s"
              self.variant="fifteen"
-        elif interval == Interval_15m:
+        elif interval == Interval_day:
              self.event_slug = f"{symbol.lower()}-up-or-down-on-%s"
              self.variant="daily"
         else:
@@ -218,7 +218,7 @@ async def subscribe_orderbook(option: TaskOption):
                                     if price == 0:
                                         continue
 
-                                    print(f"{timestamp} {option.getSymbol()} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
+                                    print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
 
                         except Exception as e:
                             print("解析错误:", e)
