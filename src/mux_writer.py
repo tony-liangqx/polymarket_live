@@ -26,7 +26,7 @@ class SymbolPrice(object):
             self.symbols[symb+"USDT"] = 0
 
     def updatePrice(self, symbol: str, price:float):
-        self.symbols[symbol+"USDT"] = price
+        self.symbols[symbol] = price
 
     def getPrice(self, symbol: str):
         return self.symbols[symbol+"USDT"]
