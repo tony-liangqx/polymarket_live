@@ -2,7 +2,7 @@ import asyncio
 import json
 import websockets
 from datetime import datetime, timezone
-import requests
+from typing import Optional
 import time
 import aiohttp
 
@@ -16,7 +16,8 @@ Interval_5m = 300
 Interval_15m = 900
 Interval_day = 86400
 
-HTTP_SESSION: aiohttp.ClientSession | None = None
+# type: ignore
+HTTP_SESSION: Optional[aiohttp.ClientSession] = None
 
 class SymbolPrice(object):
     def __init__(self, *symbs:str):
@@ -72,6 +73,12 @@ class TaskOption(object):
         return self.symbol
 
 async def fetch_open_price(url):
+    global HTTP_SESSION
+    if HTTP_SESSION is None:
+            HTTP_SESSION = aiohttp.ClientSession(
+                trust_env=True,
+                timeout=aiohttp.ClientTimeout(3)
+            )
     while True:
         async with HTTP_SESSION.get(url) as response:
             data = await response.json()
@@ -146,6 +153,12 @@ async def price_stream(symbol_price: SymbolPrice):
             await asyncio.sleep(5)
 
 async def get_asset_ids(slug) -> list[str]:
+    global HTTP_SESSION
+    if HTTP_SESSION is None:
+            HTTP_SESSION = aiohttp.ClientSession(
+                trust_env=True,
+                timeout=aiohttp.ClientTimeout(3)
+            )
     url = MARKET_URL + slug
     async with HTTP_SESSION.get(url) as resp:
         data = await resp.json()
