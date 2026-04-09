@@ -23,13 +23,13 @@ class SymbolPrice(object):
     def __init__(self, *symbs:str):
         self.symbols = {}
         for symb in symbs:
-            self.symbols[symb] = 0
+            self.symbols[symb+"USDT"] = 0
 
     def updatePrice(self, symbol: str, price:float):
-        self.symbols[symbol] = price
+        self.symbols[symbol+"USDT"] = price
 
     def getPrice(self, symbol: str):
-        return self.symbols[symbol]
+        return self.symbols[symbol+"USDT"]
 
     def getSymbols(self):
         return self.symbols.keys()
