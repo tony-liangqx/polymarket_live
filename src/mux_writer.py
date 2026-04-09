@@ -14,6 +14,7 @@ OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol
 # 5m
 Interval_5m = 300
 Interval_15m = 900
+Interval_day = 86400
 
 class TaskOption(object):
     def __init__(self, interval: int, symbol: str):
@@ -26,6 +27,11 @@ class TaskOption(object):
         elif interval == Interval_15m:
              self.event_slug = f"{symbol.lower()}-updown-15m-%s"
              self.variant="fifteen"
+        elif interval == Interval_15m:
+             self.event_slug = f"{symbol.lower()}-up-or-down-on-%s"
+             self.variant="daily"
+        else:
+            raise Exception("interval type error")
 
     def getTime(self) -> tuple[int, int]:
         start_time = int(time.time() // self.interval * self.interval)
@@ -39,6 +45,10 @@ class TaskOption(object):
 
     def getSlug(self) -> str:
         start_time, _ = self.getTime()
+        if self.interval == Interval_day:
+            "april-9-2026"
+            date_str = datetime.fromtimestamp(start_time).strftime("%B-%d-%Y").lower()
+            return self.event_slug % (date_str,)
         return self.event_slug % (start_time,)
 
     def getPrice(self) -> float:
@@ -222,6 +232,7 @@ if __name__ == "__main__":
         # 同时并发运行多个任务
         btc5m = TaskOption(Interval_5m, "BTC")
         btc15m = TaskOption(Interval_15m, "BTC")
+        btcday = TaskOption(Interval_day, "BTC")
 
         eth5m = TaskOption(Interval_5m, "ETH")
         sol5m = TaskOption(Interval_5m, "SOL")
@@ -233,6 +244,8 @@ if __name__ == "__main__":
             btc_price_stream(btc5m),
             subscribe_orderbook(btc15m),
             btc_price_stream(btc15m),
+            subscribe_orderbook(btcday),
+            btc_price_stream(btcday),
 
             # eth
             subscribe_orderbook(eth5m),
