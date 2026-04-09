@@ -220,8 +220,11 @@ if __name__ == "__main__":
     async def main():
         # 同时并发运行多个任务
         btc5m = TaskOption(Interval_5m, "BTC")
+        eth5m = TaskOption(Interval_5m, "ETH")
         await asyncio.gather(
             subscribe_orderbook(btc5m),
             btc_price_stream(btc5m),
+            subscribe_orderbook(eth5m),
+            btc_price_stream(eth5m),
         )
     asyncio.run(main())
