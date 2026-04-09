@@ -16,11 +16,28 @@ Interval_5m = 300
 Interval_15m = 900
 Interval_day = 86400
 
+GSession = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
+
+class SymbolPrice(object):
+    def __init__(self, *symbs:str):
+        self.symbols = {}
+        for symb in symbs:
+            self.symbols[symb] = 0
+
+    def updatePrice(self, symbol: str, price:float):
+        self.symbols[symbol] = price
+
+    def getPrice(self, symbol: str):
+        return self.symbols[symbol]
+
+    def getSymbols(self):
+        return self.symbols.keys()
+
 class TaskOption(object):
     def __init__(self, interval: int, symbol: str):
         self.interval = interval
         self.symbol = symbol
-        self.price = 0
+
         if interval == Interval_5m:
             self.event_slug = f"{symbol.lower()}-updown-5m-%s"
             self.variant="fiveminute"
@@ -51,30 +68,24 @@ class TaskOption(object):
             return self.event_slug % (date_str,)
         return self.event_slug % (start_time,)
 
-    def getPrice(self) -> float:
-        return self.price
-
-    def updatePrice(self, price:float):
-        self.price = price
-
     def getSymbol(self) -> str:
         return self.symbol
 
 async def fetch_open_price(url):
     while True:
-        async with aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3)) as session:
-            async with session.get(url) as response:
-                data = await response.json()
-                price = data.get("openPrice")
-                if price is None:
-                    print(url, json.dumps(data))
-                    await asyncio.sleep(1)
-                    continue
-                return data.get("openPrice")
+        async with GSession.get(url) as response:
+            data = await response.json()
+            price = data.get("openPrice")
+            if price is None:
+                print(url, json.dumps(data))
+                await asyncio.sleep(1)
+                continue
+            return data.get("openPrice")
 
-async def btc_price_stream(option: TaskOption):
+async def price_stream(symbol_price: SymbolPrice):
     url = "wss://ws-live-data.polymarket.com"
 
+    symbols = symbol_price.getSymbols()
     while True:
         try:
             async with websockets.connect(url, ping_interval=20, ping_timeout=120) as ws:
@@ -117,9 +128,9 @@ async def btc_price_stream(option: TaskOption):
                             symbol = payload.get("symbol", "").upper()
                             price = payload.get("value") or payload.get("price")
                             ts = payload.get("timestamp") or data.get("timestamp")
-
-                            if price and option.getSymbol() in symbol:
-                                option.updatePrice(float(price))
+                            for symb in symbols:
+                                if price and symb in symbol:
+                                    symbol_price.updatePrice(symb, float(price))
                             # else:
                             #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
                     except json.JSONDecodeError as e:
@@ -135,21 +146,12 @@ async def btc_price_stream(option: TaskOption):
             await asyncio.sleep(5)
 
 async def get_asset_ids(slug) -> list[str]:
-    # 获取事件循环
-    loop = asyncio.get_event_loop()
-    # 在异步线程中执行 requests（不阻塞事件循环）
-    resp = await loop.run_in_executor(
-        None,
-        requests.get,
-        MARKET_URL + slug
-    )
-    # 获取数据
-    data = resp.json()
-    # 提取并安全解析（替换危险的 eval）
-    ids_raw = data.get("clobTokenIds", "[]")
-    asset_ids = json.loads(ids_raw)
-
-    return asset_ids
+    url = MARKET_URL + slug
+    async with GSession.get(url) as resp:
+        data = await resp.json()
+        ids_raw = data.get("clobTokenIds", "[]")
+        asset_ids = json.loads(ids_raw)
+        return asset_ids
 
 
 # ========== 带超时的接收 ==========
@@ -158,7 +160,7 @@ async def receive_with_timeout(websocket, timeout):
     message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
     return json.loads(message)
 
-async def subscribe_orderbook(option: TaskOption):
+async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
     # 网络重连循环
     while True:
         try:
@@ -214,7 +216,7 @@ async def subscribe_orderbook(option: TaskOption):
                                     timestamp = ts
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
-                                    price = option.getPrice()
+                                    price = symbol_price.getPrice(option.getSymbol())
                                     if price == 0:
                                         continue
 
@@ -229,7 +231,8 @@ async def subscribe_orderbook(option: TaskOption):
 
 if __name__ == "__main__":
     async def main():
-        # 同时并发运行多个任务
+        symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
+
         btc5m = TaskOption(Interval_5m, "BTC")
         btc15m = TaskOption(Interval_15m, "BTC")
         btcday = TaskOption(Interval_day, "BTC")
@@ -238,29 +241,26 @@ if __name__ == "__main__":
         sol5m = TaskOption(Interval_5m, "SOL")
         xrp5m = TaskOption(Interval_5m, "XRP")
         doge5m = TaskOption(Interval_5m, "DOGE")
+
+        # 同时并发运行多个任务
         await asyncio.gather(
             # BTC
-            subscribe_orderbook(btc5m),
-            btc_price_stream(btc5m),
-            subscribe_orderbook(btc15m),
-            btc_price_stream(btc15m),
-            subscribe_orderbook(btcday),
-            btc_price_stream(btcday),
+            price_stream(symbolPrice),
+
+            subscribe_orderbook(btc5m, symbolPrice),
+            subscribe_orderbook(btc15m, symbolPrice),
+            subscribe_orderbook(btcday, symbolPrice),
 
             # eth
-            subscribe_orderbook(eth5m),
-            btc_price_stream(eth5m),
+            subscribe_orderbook(eth5m, symbolPrice),
 
             # sol
-            subscribe_orderbook(sol5m),
-            btc_price_stream(sol5m),
+            subscribe_orderbook(sol5m, symbolPrice),
 
             # xrp
-            subscribe_orderbook(xrp5m),
-            btc_price_stream(xrp5m),
+            subscribe_orderbook(xrp5m, symbolPrice),
 
             # doge
-            subscribe_orderbook(doge5m),
-            btc_price_stream(doge5m),
+            subscribe_orderbook(doge5m, symbolPrice),
         )
     asyncio.run(main())
