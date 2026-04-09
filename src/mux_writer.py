@@ -265,8 +265,13 @@ if __name__ == "__main__":
         ethday = TaskOption(Interval_day, "ETH")
 
         sol5m = TaskOption(Interval_5m, "SOL")
+        sol15m = TaskOption(Interval_15m, "SOL")
+
         xrp5m = TaskOption(Interval_5m, "XRP")
+        xrp15m = TaskOption(Interval_15m, "XRP")
+
         doge5m = TaskOption(Interval_5m, "DOGE")
+        doge15m = TaskOption(Interval_15m, "DOGE")
 
         # 同时并发运行多个任务
         await asyncio.gather(
@@ -284,11 +289,14 @@ if __name__ == "__main__":
 
             # sol
             subscribe_orderbook(sol5m, symbolPrice),
+            subscribe_orderbook(sol15m, symbolPrice),
 
             # xrp
             subscribe_orderbook(xrp5m, symbolPrice),
+            subscribe_orderbook(xrp15m, symbolPrice),
 
             # doge
             subscribe_orderbook(doge5m, symbolPrice),
+            subscribe_orderbook(doge15m, symbolPrice),
         )
     asyncio.run(main())
