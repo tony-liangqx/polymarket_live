@@ -12,6 +12,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.DEBUG  # 开启 DEBUG 级别日志
 )
+logging.getLogger("websockets").setLevel(logging.WARNING)
 
 WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
 MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
