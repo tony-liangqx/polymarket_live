@@ -5,6 +5,13 @@ from datetime import datetime, timezone
 from typing import Optional
 import time
 import aiohttp
+import logging
+
+# 基础配置（输出级别、格式）
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.DEBUG  # 开启 DEBUG 级别日志
+)
 
 WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
 MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
@@ -91,7 +98,7 @@ async def fetch_open_price(url):
             data = await response.json()
             price = data.get("openPrice")
             if price is None:
-                print(url, json.dumps(data))
+                logging.debug(url, json.dumps(data))
                 await asyncio.sleep(1)
                 continue
             return data.get("openPrice")
@@ -103,7 +110,7 @@ async def price_stream(symbol_price: SymbolPrice):
     while True:
         try:
             async with websockets.connect(url, ping_interval=20, ping_timeout=120) as ws:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接到 RTDS")
+                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接到 RTDS")
 
                 # 最安全的订阅方式：不带 filters（订阅所有 crypto_prices）
                 subscribe_msg = {
@@ -118,7 +125,7 @@ async def price_stream(symbol_price: SymbolPrice):
                 }
 
                 await ws.send(json.dumps(subscribe_msg))
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] 已发送订阅（所有 crypto_prices）")
+                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 已发送订阅（所有 crypto_prices）")
 
                 # 心跳
                 async def heartbeat():
@@ -128,7 +135,7 @@ async def price_stream(symbol_price: SymbolPrice):
 
                 ping_task = asyncio.create_task(heartbeat())
 
-                print("正在等待数据...（会收到很多交易对的价格，请耐心等几秒）\n")
+                logging.debug("正在等待数据...（会收到很多交易对的价格，请耐心等几秒）\n")
 
                 async for message in ws:
                     if not message or message.strip().lower() in ["pong", "ping", ""]:
@@ -145,17 +152,17 @@ async def price_stream(symbol_price: SymbolPrice):
                             if price and symbol in symbols:
                                 symbol_price.updatePrice(symbol, float(price))
                             # else:
-                            #     print(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
+                            #     logging.debug(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
                     except json.JSONDecodeError as e:
-                        print(e)
+                        logging.debug(e)
                         pass
                     except Exception as e:
-                        print(f"解析异常: {e}")
+                        logging.debug(f"解析异常: {e}")
 
                 await ping_task
 
         except Exception as e:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] 连接异常: {e}，5秒后重连...")
+            logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 连接异常: {e}，5秒后重连...")
             await asyncio.sleep(5)
 
 async def get_asset_ids(slug) -> list[str]:
@@ -191,7 +198,7 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
             open_price = await fetch_open_price(open_price_url)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
+                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
 
                 while True:
                     # 订阅消息（官方推荐格式）
@@ -202,7 +209,7 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                     }
 
                     await ws.send(json.dumps(sub_msg))
-                    print(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
+                    logging.debug(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
 
                     # 去重寄存器
                     timestamp = 0
@@ -216,12 +223,12 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                             event_slug = option.getSlug()
                             open_price_url = option.getOpenPriceUrl()
                             open_price = await fetch_open_price(open_price_url)
-                            print(f"⏰ 切换到新的 slug: {event_slug}")
+                            logging.debug(f"⏰ 切换到新的 slug: {event_slug}")
                             break
                         try:
                             data = await receive_with_timeout(ws, timeout)
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError) as e:
-                            print(e)
+                            logging.debug(e)
                             continue
                         try:
                             msg_type = data.get("event_type")
@@ -242,9 +249,9 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                                     print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
 
                         except Exception as e:
-                            print("解析错误:", e)
+                            logging.debug("解析错误:", e)
         except Exception as e:
-            print(e)
+            logging.debug(e)
 
 
 
