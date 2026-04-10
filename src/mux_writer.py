@@ -99,7 +99,7 @@ async def fetch_open_price(url):
             data = await response.json()
             price = data.get("openPrice")
             if price is None:
-                logging.debug(url, json.dumps(data))
+                logging.debug(f"{url}, {data}")
                 await asyncio.sleep(1)
                 continue
             return data.get("openPrice")
@@ -154,9 +154,8 @@ async def price_stream(symbol_price: SymbolPrice):
                                 symbol_price.updatePrice(symbol, float(price))
                             # else:
                             #     logging.debug(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
-                    except json.JSONDecodeError as e:
-                        logging.debug(e)
-                        pass
+                    except json.JSONDecodeError:
+                        logging.debug("price stream data 发生异常:", exc_info=True)
                     except Exception as e:
                         logging.debug(f"解析异常: {e}")
 
@@ -233,15 +232,20 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                             break
                         try:
                             data = await receive_with_timeout(ws, timeout)
-                        except (asyncio.TimeoutError, json.decoder.JSONDecodeError) as e:
-                            logging.debug(e)
+                        except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
+                            logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
                         try:
+                            if not isinstance(data, dict):
+                                continue
                             msg_type = data.get("event_type")
                             if msg_type == "price_change":
                                 items = data.get('price_changes', [])
                                 for item in items:
-                                    ts = int(data.get('timestamp')) // 1000
+                                    ts = data.get('timestamp')
+                                    if ts is None:
+                                        continue
+                                    ts = int(ts) // 1000
                                     # 去重: 只取一个点
                                     if ts == timestamp:
                                         continue
@@ -253,11 +257,10 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                                         continue
 
                                     print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
-
-                        except Exception as e:
-                            logging.debug("解析错误:", e)
-        except Exception as e:
-            logging.debug(e)
+                        except Exception:
+                            logging.debug("data 发生异常:", exc_info=True)
+        except Exception:
+            logging.debug("subscribe_orderbook 发生异常:", exc_info=True)
 
 
 
@@ -288,9 +291,9 @@ if __name__ == "__main__":
 
         # 同时并发运行多个任务
         await asyncio.gather(
-            # BTC
             price_stream(symbolPrice),
 
+            # BTC
             subscribe_orderbook(btc5m, symbolPrice),
             subscribe_orderbook(btc15m, symbolPrice),
             subscribe_orderbook(btcday, symbolPrice),
@@ -300,11 +303,11 @@ if __name__ == "__main__":
             subscribe_orderbook(eth15m, symbolPrice),
             subscribe_orderbook(ethday, symbolPrice),
 
-            # sol
+            # # sol
             subscribe_orderbook(sol5m, symbolPrice),
             subscribe_orderbook(sol15m, symbolPrice),
 
-            # xrp
+            # # xrp
             subscribe_orderbook(xrp5m, symbolPrice),
             subscribe_orderbook(xrp15m, symbolPrice),
 
