@@ -174,11 +174,16 @@ async def get_asset_ids(slug) -> list[str]:
                 timeout=aiohttp.ClientTimeout(3)
             )
     url = MARKET_URL + slug
-    async with HTTP_SESSION.get(url) as resp:
-        data = await resp.json()
-        ids_raw = data.get("clobTokenIds", "[]")
-        asset_ids = json.loads(ids_raw)
-        return asset_ids
+    while True:
+        logging.debug(f"{url}")
+        async with HTTP_SESSION.get(url) as resp:
+            data = await resp.json()
+            ids_raw = data.get("clobTokenIds")
+            if ids_raw is None:
+                await asyncio.sleep(1)
+                continue
+            asset_ids = json.loads(ids_raw)
+            return asset_ids
 
 
 # ========== 带超时的接收 ==========
