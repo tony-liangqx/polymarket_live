@@ -79,8 +79,8 @@ class TaskOption(object):
         if self.interval == Interval_day:
             # 特殊格式
             # "bitcoin-up-or-down-on-april-9-2026"
-            # "ethereum-up-or-down-on-april-8"
-            date_str = datetime.fromtimestamp(start_time).strftime("%B-%-d-%Y").lower()
+            # "ethereum-up-or-down-on-april-8-2026"
+            date_str = datetime.fromtimestamp(start_time).strftime("%B-%-d-%Y").lower().replace("-0", "-")
             return self.event_slug % (date_str,)
         return self.event_slug % (start_time,)
 
