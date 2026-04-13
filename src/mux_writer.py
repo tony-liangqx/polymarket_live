@@ -230,24 +230,24 @@ if __name__ == "__main__":
         await asyncio.gather(
             # BTC
             subscribe_orderbook(btc5m),
-            # subscribe_orderbook(btc15m),
-            # subscribe_orderbook(btcday),
+            subscribe_orderbook(btc15m),
+            subscribe_orderbook(btcday),
 
-            # # eth
-            # subscribe_orderbook(eth5m),
-            # subscribe_orderbook(eth15m),
-            # subscribe_orderbook(ethday),
+            # eth
+            subscribe_orderbook(eth5m),
+            subscribe_orderbook(eth15m),
+            subscribe_orderbook(ethday),
 
-            # # # sol
-            # subscribe_orderbook(sol5m),
-            # subscribe_orderbook(sol15m),
+            # sol
+            subscribe_orderbook(sol5m),
+            subscribe_orderbook(sol15m),
 
-            # # # xrp
-            # subscribe_orderbook(xrp5m),
-            # subscribe_orderbook(xrp15m),
+            # xrp
+            subscribe_orderbook(xrp5m),
+            subscribe_orderbook(xrp15m),
 
-            # # doge
-            # subscribe_orderbook(doge5m),
-            # subscribe_orderbook(doge15m),
+            # doge
+            subscribe_orderbook(doge5m),
+            subscribe_orderbook(doge15m),
         )
     asyncio.run(main())
