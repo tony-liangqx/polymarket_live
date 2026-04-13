@@ -194,6 +194,8 @@ async def subscribe_orderbook(option: TaskOption):
                             else:
                                 continue
                             timestamp = payload.get("timestamp")
+                            if order_price == "-":
+                                continue
                             print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {outcome} {side} {size} order_price: {order_price}")
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
