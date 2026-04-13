@@ -107,86 +107,6 @@ async def fetch_open_price(url):
                 continue
             return data.get("openPrice")
 
-# async def price_stream(symbol_price: SymbolPrice):
-#     url = "wss://ws-live-data.polymarket.com"
-
-#     symbols = symbol_price.getSymbols()
-#     while True:
-#         try:
-#             async with websockets.connect(url, ping_interval=20, ping_timeout=120) as ws:
-#                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接到 RTDS")
-
-#                 # 最安全的订阅方式：不带 filters（订阅所有 crypto_prices）
-#                 subscribe_msg = {
-#                     "action": "subscribe",
-#                     "subscriptions": [
-#                         {
-#                             "topic": "crypto_prices_chainlink",
-#                             "type": "update"
-#                             # 不写 filters 字段，或写 "filters": ""
-#                         }
-#                     ]
-#                 }
-
-#                 await ws.send(json.dumps(subscribe_msg))
-#                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 已发送订阅（所有 crypto_prices）")
-
-#                 # 心跳
-#                 async def heartbeat():
-#                     while True:
-#                         await asyncio.sleep(5)
-#                         await ws.send("ping")
-
-#                 ping_task = asyncio.create_task(heartbeat())
-
-#                 logging.debug("正在等待数据...（会收到很多交易对的价格，请耐心等几秒）\n")
-
-#                 async for message in ws:
-#                     if not message or message.strip().lower() in ["pong", "ping", ""]:
-#                         continue
-
-#                     try:
-#                         data = json.loads(message)
-#                         print(data)
-#                         if data.get("topic") == "crypto_prices_chainlink":
-#                             payload = data.get("payload") or data
-#                             symbol = payload.get("symbol", "").replace("/usd", "usdt").upper()
-#                             price = payload.get("value") or payload.get("price")
-#                             ts = payload.get("timestamp") or data.get("timestamp")
-#                             if price and symbol in symbols:
-#                                 symbol_price.updatePrice(symbol, float(price))
-#                             # else:
-#                             #     logging.debug(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
-#                     except json.JSONDecodeError:
-#                         logging.debug("price stream data 发生异常:", exc_info=True)
-#                     except Exception as e:
-#                         logging.debug(f"解析异常: {e}")
-
-#                 await ping_task
-
-#         except Exception as e:
-#             logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 连接异常: {e}，5秒后重连...")
-#             await asyncio.sleep(5)
-
-# async def get_asset_ids(slug) -> list[str]:
-#     global HTTP_SESSION
-#     if HTTP_SESSION is None:
-#             HTTP_SESSION = aiohttp.ClientSession(
-#                 trust_env=True,
-#                 timeout=aiohttp.ClientTimeout(3)
-#             )
-#     url = MARKET_URL + slug
-#     while True:
-#         logging.debug(f"{url}")
-#         async with HTTP_SESSION.get(url) as resp:
-#             data = await resp.json()
-#             ids_raw = data.get("clobTokenIds")
-#             if ids_raw is None:
-#                 await asyncio.sleep(1)
-#                 continue
-#             asset_ids = json.loads(ids_raw)
-#             return asset_ids
-
 
 # ========== 带超时的接收 ==========
 async def receive_with_timeout(websocket, timeout):
@@ -194,7 +114,7 @@ async def receive_with_timeout(websocket, timeout):
     message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
     return json.loads(message)
 
-async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
+async def subscribe_orderbook(option: TaskOption):
     # 网络重连循环
     while True:
         try:
@@ -227,11 +147,12 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                     }
 
                     await ws.send(json.dumps(sub_msg))
-                    # logging.debug(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
+                    logging.debug(f"已订阅订单簿，slug: {event_slug}, open price: {open_price}")
 
                     # 去重寄存器
-                    timestamp = 0
+                    coin_price = 0
                     while True:
+                        print("xxx")
                         now = int(time.time())
                         timeout = end_time - now
                         if timeout < 1:
@@ -245,31 +166,29 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                             break
                         try:
                             data = await receive_with_timeout(ws, timeout)
+                            print(data)
+                            msg_type = data.get("type")
+                            if msg_type == "update":
+                                payload = data.get("payload")
+                                if payload is None:
+                                    continue
+                                coin_price = payload.get("value")
+                            elif msg_type == "orders_matched":
+                                # 没有价格，忽略订单信息
+                                if coin_price == 0:
+                                    continue
+                                payload = data.get("payload")
+                                if payload is None:
+                                    continue
+                                outcome = payload.get("outcome")
+                                order_price = payload.get("price")
+                                side = payload.get("side")
+                                size = payload.get("size")
+                                timestamp = payload.get("timestamp")
+                            print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {outcome} {side} {size} order: {order_price}")
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
-                        try:
-                            if not isinstance(data, dict):
-                                continue
-                            msg_type = data.get("event_type")
-                            if msg_type == "price_change":
-                                items = data.get('price_changes', [])
-                                for item in items:
-                                    ts = data.get('timestamp')
-                                    if ts is None:
-                                        continue
-                                    ts = int(ts) // 1000
-                                    # 去重: 只取一个点
-                                    if ts == timestamp:
-                                        continue
-                                    timestamp = ts
-                                    best_bid = item.get("best_bid")
-                                    best_ask = item.get("best_ask")
-                                    price = symbol_price.getPrice(option.getSymbol())
-                                    if price == 0:
-                                        continue
-
-                                    print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} price: {price} best_bid:{best_bid} best_ask: {best_ask}")
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)
         except Exception:
@@ -280,10 +199,10 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
 if __name__ == "__main__":
     async def main():
 
-        global HTTP_SESSION
-        HTTP_SESSION = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
+        # global HTTP_SESSION
+        # HTTP_SESSION = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
 
-        symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
+        # symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
 
         btc5m = TaskOption(Interval_5m, "BTC")
         btc15m = TaskOption(Interval_15m, "BTC")
@@ -307,7 +226,7 @@ if __name__ == "__main__":
             # price_stream(symbolPrice),
 
             # BTC
-            subscribe_orderbook(btc5m, symbolPrice),
+            subscribe_orderbook(btc5m),
             # subscribe_orderbook(btc15m, symbolPrice),
             # subscribe_orderbook(btcday, symbolPrice),
 
