@@ -14,8 +14,7 @@ logging.basicConfig(
 )
 logging.getLogger("websockets").setLevel(logging.WARNING)
 
-WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
-MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
+WS_URL = "wss://ws-live-data.polymarket.com/"
 OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
 
 
@@ -46,6 +45,7 @@ class TaskOption(object):
     def __init__(self, interval: int, symbol: str):
         self.interval = interval
         self.symbol = symbol
+        self.topic = "crypto_prices_chainlink"
 
         if interval == Interval_5m:
            self.event_slug = f"{symbol.lower()}-updown-5m-%s"
@@ -61,8 +61,12 @@ class TaskOption(object):
             else:
                 self.event_slug = f"{symbol.lower()}-up-or-down-on-%s"
             self.variant="daily"
+            self.topic = "crypto_prices"
         else:
             raise Exception("interval type error")
+
+    def getTopic(self) -> str:
+        return self.topic
 
     def getTime(self) -> tuple[int, int]:
         start_time = int(time.time() // self.interval * self.interval)
@@ -88,6 +92,8 @@ class TaskOption(object):
         return self.symbol
 
     def getFullSymbol(self) -> str:
+        if self.interval == Interval_day:
+            return self.symbol + "USDT"
         return self.symbol.lower() + "/usd"
 
 async def fetch_open_price(url):
@@ -132,19 +138,20 @@ async def subscribe_orderbook(option: TaskOption):
                     # 订阅消息（官方推荐格式）
                     sub_msg = {
                         "action": "subscribe",
-                           "subscriptions": [
-                               {
-                                   "topic": "activity",
-                                   "type": "orders_matched",
-                                   "filters": "{\"event_slug\":\"%s\"}" % (event_slug,)
-                               },
-                               {
-                                   "topic": "crypto_prices_chainlink",
-                                   "type": "update",
-                                   "filters": "{\"symbol\":\"%s\"}" % (option.getFullSymbol(),)
-                               }
-                           ]
+                        "subscriptions": [
+                            {
+                                "topic": "activity",
+                                "type": "orders_matched",
+                                "filters": "{\"event_slug\":\"%s\"}" % (event_slug,)
+                            },
+                            {
+                                "topic": option.getTopic(),
+                                "type": "update",
+                                "filters": "{\"symbol\":\"%s\"}" % (option.getFullSymbol(),)
+                            }
+                        ]
                     }
+                    print(json.dumps(sub_msg))
 
                     await ws.send(json.dumps(sub_msg))
                     logging.debug(f"已订阅订单簿，slug: {event_slug}, open price: {open_price}")
@@ -152,7 +159,6 @@ async def subscribe_orderbook(option: TaskOption):
                     # 去重寄存器
                     coin_price = 0
                     while True:
-                        print("xxx")
                         now = int(time.time())
                         timeout = end_time - now
                         if timeout < 1:
@@ -166,7 +172,10 @@ async def subscribe_orderbook(option: TaskOption):
                             break
                         try:
                             data = await receive_with_timeout(ws, timeout)
-                            print(data)
+                            outcome = "-"
+                            order_price = "-"
+                            side = "-"
+                            size = "-"
                             msg_type = data.get("type")
                             if msg_type == "update":
                                 payload = data.get("payload")
@@ -180,12 +189,10 @@ async def subscribe_orderbook(option: TaskOption):
                                 payload = data.get("payload")
                                 if payload is None:
                                     continue
-                                outcome = payload.get("outcome")
-                                order_price = payload.get("price")
-                                side = payload.get("side")
-                                size = payload.get("size")
-                                timestamp = payload.get("timestamp")
-                            print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {outcome} {side} {size} order: {order_price}")
+                            else:
+                                continue
+                            timestamp = payload.get("timestamp")
+                            print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {outcome} {side} {size} order_price: {order_price}")
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
@@ -227,8 +234,8 @@ if __name__ == "__main__":
 
             # BTC
             subscribe_orderbook(btc5m),
-            # subscribe_orderbook(btc15m, symbolPrice),
-            # subscribe_orderbook(btcday, symbolPrice),
+            subscribe_orderbook(btc15m),
+            subscribe_orderbook(btcday),
 
             # # eth
             # subscribe_orderbook(eth5m, symbolPrice),
