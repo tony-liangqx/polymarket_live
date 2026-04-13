@@ -87,6 +87,9 @@ class TaskOption(object):
     def getSymbol(self) -> str:
         return self.symbol
 
+    def getFullSymbol(self) -> str:
+        return self.symbol.lower() + "/usd"
+
 async def fetch_open_price(url):
     global HTTP_SESSION
     if HTTP_SESSION is None:
@@ -104,85 +107,85 @@ async def fetch_open_price(url):
                 continue
             return data.get("openPrice")
 
-async def price_stream(symbol_price: SymbolPrice):
-    url = "wss://ws-live-data.polymarket.com"
+# async def price_stream(symbol_price: SymbolPrice):
+#     url = "wss://ws-live-data.polymarket.com"
 
-    symbols = symbol_price.getSymbols()
-    while True:
-        try:
-            async with websockets.connect(url, ping_interval=20, ping_timeout=120) as ws:
-                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接到 RTDS")
+#     symbols = symbol_price.getSymbols()
+#     while True:
+#         try:
+#             async with websockets.connect(url, ping_interval=20, ping_timeout=120) as ws:
+#                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接到 RTDS")
 
-                # 最安全的订阅方式：不带 filters（订阅所有 crypto_prices）
-                subscribe_msg = {
-                    "action": "subscribe",
-                    "subscriptions": [
-                        {
-                            "topic": "crypto_prices",
-                            "type": "update"
-                            # 不写 filters 字段，或写 "filters": ""
-                        }
-                    ]
-                }
+#                 # 最安全的订阅方式：不带 filters（订阅所有 crypto_prices）
+#                 subscribe_msg = {
+#                     "action": "subscribe",
+#                     "subscriptions": [
+#                         {
+#                             "topic": "crypto_prices_chainlink",
+#                             "type": "update"
+#                             # 不写 filters 字段，或写 "filters": ""
+#                         }
+#                     ]
+#                 }
 
-                await ws.send(json.dumps(subscribe_msg))
-                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 已发送订阅（所有 crypto_prices）")
+#                 await ws.send(json.dumps(subscribe_msg))
+#                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 已发送订阅（所有 crypto_prices）")
 
-                # 心跳
-                async def heartbeat():
-                    while True:
-                        await asyncio.sleep(5)
-                        await ws.send("ping")
+#                 # 心跳
+#                 async def heartbeat():
+#                     while True:
+#                         await asyncio.sleep(5)
+#                         await ws.send("ping")
 
-                ping_task = asyncio.create_task(heartbeat())
+#                 ping_task = asyncio.create_task(heartbeat())
 
-                logging.debug("正在等待数据...（会收到很多交易对的价格，请耐心等几秒）\n")
+#                 logging.debug("正在等待数据...（会收到很多交易对的价格，请耐心等几秒）\n")
 
-                async for message in ws:
-                    if not message or message.strip().lower() in ["pong", "ping", ""]:
-                        continue
+#                 async for message in ws:
+#                     if not message or message.strip().lower() in ["pong", "ping", ""]:
+#                         continue
 
-                    try:
-                        data = json.loads(message)
+#                     try:
+#                         data = json.loads(message)
+#                         print(data)
+#                         if data.get("topic") == "crypto_prices_chainlink":
+#                             payload = data.get("payload") or data
+#                             symbol = payload.get("symbol", "").replace("/usd", "usdt").upper()
+#                             price = payload.get("value") or payload.get("price")
+#                             ts = payload.get("timestamp") or data.get("timestamp")
+#                             if price and symbol in symbols:
+#                                 symbol_price.updatePrice(symbol, float(price))
+#                             # else:
+#                             #     logging.debug(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
+#                     except json.JSONDecodeError:
+#                         logging.debug("price stream data 发生异常:", exc_info=True)
+#                     except Exception as e:
+#                         logging.debug(f"解析异常: {e}")
 
-                        if data.get("topic") == "crypto_prices":
-                            payload = data.get("payload") or data
-                            symbol = payload.get("symbol", "").upper()
-                            price = payload.get("value") or payload.get("price")
-                            ts = payload.get("timestamp") or data.get("timestamp")
-                            if price and symbol in symbols:
-                                symbol_price.updatePrice(symbol, float(price))
-                            # else:
-                            #     logging.debug(f"其他价格: {symbol} = {price}")  # 调试时可取消注释看流量
-                    except json.JSONDecodeError:
-                        logging.debug("price stream data 发生异常:", exc_info=True)
-                    except Exception as e:
-                        logging.debug(f"解析异常: {e}")
+#                 await ping_task
 
-                await ping_task
+#         except Exception as e:
+#             logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 连接异常: {e}，5秒后重连...")
+#             await asyncio.sleep(5)
 
-        except Exception as e:
-            logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] 连接异常: {e}，5秒后重连...")
-            await asyncio.sleep(5)
-
-async def get_asset_ids(slug) -> list[str]:
-    global HTTP_SESSION
-    if HTTP_SESSION is None:
-            HTTP_SESSION = aiohttp.ClientSession(
-                trust_env=True,
-                timeout=aiohttp.ClientTimeout(3)
-            )
-    url = MARKET_URL + slug
-    while True:
-        logging.debug(f"{url}")
-        async with HTTP_SESSION.get(url) as resp:
-            data = await resp.json()
-            ids_raw = data.get("clobTokenIds")
-            if ids_raw is None:
-                await asyncio.sleep(1)
-                continue
-            asset_ids = json.loads(ids_raw)
-            return asset_ids
+# async def get_asset_ids(slug) -> list[str]:
+#     global HTTP_SESSION
+#     if HTTP_SESSION is None:
+#             HTTP_SESSION = aiohttp.ClientSession(
+#                 trust_env=True,
+#                 timeout=aiohttp.ClientTimeout(3)
+#             )
+#     url = MARKET_URL + slug
+#     while True:
+#         logging.debug(f"{url}")
+#         async with HTTP_SESSION.get(url) as resp:
+#             data = await resp.json()
+#             ids_raw = data.get("clobTokenIds")
+#             if ids_raw is None:
+#                 await asyncio.sleep(1)
+#                 continue
+#             asset_ids = json.loads(ids_raw)
+#             return asset_ids
 
 
 # ========== 带超时的接收 ==========
@@ -199,7 +202,7 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
             event_slug = option.getSlug()
             open_price_url = option.getOpenPriceUrl()
 
-            asset_ids = await get_asset_ids(event_slug)
+            # asset_ids = await get_asset_ids(event_slug)
             open_price = await fetch_open_price(open_price_url)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
@@ -208,13 +211,23 @@ async def subscribe_orderbook(option: TaskOption, symbol_price:SymbolPrice):
                 while True:
                     # 订阅消息（官方推荐格式）
                     sub_msg = {
-                        "assets_ids": asset_ids,          # 必须传两个 token id（Up + Down）
-                        "type": "market",
-                        "custom_feature_enabled": True
+                        "action": "subscribe",
+                           "subscriptions": [
+                               {
+                                   "topic": "activity",
+                                   "type": "orders_matched",
+                                   "filters": "{\"event_slug\":\"%s\"}" % (event_slug,)
+                               },
+                               {
+                                   "topic": "crypto_prices_chainlink",
+                                   "type": "update",
+                                   "filters": "{\"symbol\":\"%s\"}" % (option.getFullSymbol(),)
+                               }
+                           ]
                     }
 
                     await ws.send(json.dumps(sub_msg))
-                    logging.debug(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
+                    # logging.debug(f"已订阅订单簿，slug: {event_slug} asset_ids: {asset_ids[:2]}...")
 
                     # 去重寄存器
                     timestamp = 0
@@ -291,28 +304,28 @@ if __name__ == "__main__":
 
         # 同时并发运行多个任务
         await asyncio.gather(
-            price_stream(symbolPrice),
+            # price_stream(symbolPrice),
 
             # BTC
             subscribe_orderbook(btc5m, symbolPrice),
-            subscribe_orderbook(btc15m, symbolPrice),
-            subscribe_orderbook(btcday, symbolPrice),
+            # subscribe_orderbook(btc15m, symbolPrice),
+            # subscribe_orderbook(btcday, symbolPrice),
 
-            # eth
-            subscribe_orderbook(eth5m, symbolPrice),
-            subscribe_orderbook(eth15m, symbolPrice),
-            subscribe_orderbook(ethday, symbolPrice),
+            # # eth
+            # subscribe_orderbook(eth5m, symbolPrice),
+            # subscribe_orderbook(eth15m, symbolPrice),
+            # subscribe_orderbook(ethday, symbolPrice),
 
-            # # sol
-            subscribe_orderbook(sol5m, symbolPrice),
-            subscribe_orderbook(sol15m, symbolPrice),
+            # # # sol
+            # subscribe_orderbook(sol5m, symbolPrice),
+            # subscribe_orderbook(sol15m, symbolPrice),
 
-            # # xrp
-            subscribe_orderbook(xrp5m, symbolPrice),
-            subscribe_orderbook(xrp15m, symbolPrice),
+            # # # xrp
+            # subscribe_orderbook(xrp5m, symbolPrice),
+            # subscribe_orderbook(xrp15m, symbolPrice),
 
-            # doge
-            subscribe_orderbook(doge5m, symbolPrice),
-            subscribe_orderbook(doge15m, symbolPrice),
+            # # doge
+            # subscribe_orderbook(doge5m, symbolPrice),
+            # subscribe_orderbook(doge15m, symbolPrice),
         )
     asyncio.run(main())
