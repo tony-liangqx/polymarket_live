@@ -127,8 +127,6 @@ async def subscribe_orderbook(option: TaskOption):
             start_time, end_time = option.getTime()
             event_slug = option.getSlug()
             open_price_url = option.getOpenPriceUrl()
-
-            # asset_ids = await get_asset_ids(event_slug)
             open_price = await fetch_open_price(open_price_url)
 
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=120) as ws:
@@ -189,6 +187,10 @@ async def subscribe_orderbook(option: TaskOption):
                                 payload = data.get("payload")
                                 if payload is None:
                                     continue
+                                outcome = payload.get("outcome")
+                                order_price = payload.get("price")
+                                side = payload.get("side")
+                                size = payload.get("size")
                             else:
                                 continue
                             timestamp = payload.get("timestamp")
@@ -205,12 +207,6 @@ async def subscribe_orderbook(option: TaskOption):
 
 if __name__ == "__main__":
     async def main():
-
-        # global HTTP_SESSION
-        # HTTP_SESSION = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(3))
-
-        # symbolPrice = SymbolPrice("BTC", "ETH", "SOL", "XRP", "DOGE")
-
         btc5m = TaskOption(Interval_5m, "BTC")
         btc15m = TaskOption(Interval_15m, "BTC")
         btcday = TaskOption(Interval_day, "BTC")
@@ -230,28 +226,26 @@ if __name__ == "__main__":
 
         # 同时并发运行多个任务
         await asyncio.gather(
-            # price_stream(symbolPrice),
-
             # BTC
             subscribe_orderbook(btc5m),
             subscribe_orderbook(btc15m),
             subscribe_orderbook(btcday),
 
             # # eth
-            # subscribe_orderbook(eth5m, symbolPrice),
-            # subscribe_orderbook(eth15m, symbolPrice),
-            # subscribe_orderbook(ethday, symbolPrice),
+            # subscribe_orderbook(eth5m),
+            # subscribe_orderbook(eth15m),
+            # subscribe_orderbook(ethday),
 
             # # # sol
-            # subscribe_orderbook(sol5m, symbolPrice),
-            # subscribe_orderbook(sol15m, symbolPrice),
+            # subscribe_orderbook(sol5m),
+            # subscribe_orderbook(sol15m),
 
             # # # xrp
-            # subscribe_orderbook(xrp5m, symbolPrice),
-            # subscribe_orderbook(xrp15m, symbolPrice),
+            # subscribe_orderbook(xrp5m),
+            # subscribe_orderbook(xrp15m),
 
             # # doge
-            # subscribe_orderbook(doge5m, symbolPrice),
-            # subscribe_orderbook(doge15m, symbolPrice),
+            # subscribe_orderbook(doge5m),
+            # subscribe_orderbook(doge15m),
         )
     asyncio.run(main())
