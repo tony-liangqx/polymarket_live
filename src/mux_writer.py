@@ -198,6 +198,8 @@ async def subscribe_orderbook(option: TaskOption):
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
+                        except websockets.exceptions.ConnectionClosedError as e:
+                            raise e
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)
         except Exception:
@@ -228,8 +230,8 @@ if __name__ == "__main__":
         await asyncio.gather(
             # BTC
             subscribe_orderbook(btc5m),
-            subscribe_orderbook(btc15m),
-            subscribe_orderbook(btcday),
+            # subscribe_orderbook(btc15m),
+            # subscribe_orderbook(btcday),
 
             # # eth
             # subscribe_orderbook(eth5m),
