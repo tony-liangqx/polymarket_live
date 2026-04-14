@@ -52,9 +52,7 @@ class TaskOption(object):
         self.topic = "crypto_prices_chainlink"
 
         # cache
-        self.timestamp = 0
-        self.bid = ""
-        self.ask = ""
+        self.cache = {"SLEE": (0, "", ""), "BUY": (0, "", "")}
 
         if interval == Interval_5m:
            self.event_slug = f"{symbol.lower()}-updown-5m-%s"
@@ -105,13 +103,11 @@ class TaskOption(object):
             return self.symbol + "USDT"
         return self.symbol.lower() + "/usd"
 
-    def setValue(self, timestamp, bid, ask):
-        self.timestamp = timestamp
-        self.bid = bid
-        self.ask = ask
+    def setValue(self, timestamp, side, bid, ask):
+        self.cache[side] = (timestamp, bid, ask)
 
-    def getValue(self) -> tuple[int, str, str]:
-        return self.timestamp, self.bid, self.ask
+    def getValue(self, side) -> tuple[int, str, str]:
+        return self.cache[side]
 
 async def fetch_open_price(url):
     global HTTP_SESSION
@@ -212,11 +208,11 @@ async def subscribe_orderbook(option: TaskOption):
                             timestamp = payload.get("timestamp")
                             if order_price == "-":
                                 continue
-                            ts, bid, ask = option.getValue()
+                            ts, bid, ask = option.getValue(side)
                             if timestamp - ts > 1:
                                 bid = "NaN"
                                 ask = "NaN"
-                            print(f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} bid: {bid} ask: {ask}")
+                            print(f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {side}_bid: {bid} {side}_ask: {ask}")
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
@@ -294,9 +290,10 @@ async def subscribe_asset_ids(option: TaskOption):
                                     if timestamp is None:
                                         continue
                                     timestamp = int(timestamp) // 1000
+                                    side = item.get("side")
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
-                                    option.setValue(timestamp, best_bid, best_ask)
+                                    option.setValue(timestamp, side, best_bid, best_ask)
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)
         except Exception:
@@ -328,8 +325,8 @@ if __name__ == "__main__":
             # BTC
             subscribe_orderbook(btc5m),
             subscribe_asset_ids(btc5m),
-            subscribe_orderbook(btc15m),
-            subscribe_asset_ids(btc15m),
+            # subscribe_orderbook(btc15m),
+            # subscribe_asset_ids(btc15m),
             # subscribe_orderbook(btcday),
             # subscribe_asset_ids(btcday),
 
