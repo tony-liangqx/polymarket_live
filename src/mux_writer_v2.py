@@ -216,7 +216,7 @@ async def subscribe_orderbook(option: TaskOption):
                             if timestamp - ts > 1:
                                 bid = "NaN"
                                 ask = "NaN"
-                            print(f"{timestamp} {option.getSymbol()} {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {outcome} {side} {size} order_price: {order_price} {bid} {ask}")
+                            print(f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} bid: {bid} ask: {ask}")
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
@@ -326,8 +326,8 @@ if __name__ == "__main__":
         # 同时并发运行多个任务
         await asyncio.gather(
             # BTC
-            # subscribe_asset_ids(btc5m),
-            # subscribe_orderbook(btc5m),
+            subscribe_orderbook(btc5m),
+            subscribe_asset_ids(btc5m),
             subscribe_orderbook(btc15m),
             subscribe_asset_ids(btc15m),
             # subscribe_orderbook(btcday),
@@ -348,6 +348,7 @@ if __name__ == "__main__":
 
             # # doge
             # subscribe_orderbook(doge5m),
+            # subscribe_asset_ids(doge5m),
             # subscribe_orderbook(doge15m),
         )
     asyncio.run(main())
