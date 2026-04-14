@@ -13,6 +13,8 @@ logging.basicConfig(
     level=logging.DEBUG  # 开启 DEBUG 级别日志
 )
 logging.getLogger("websockets").setLevel(logging.WARNING)
+# 关闭所有日志输出
+logging.disable(logging.CRITICAL + 1)
 
 WS_URL = "wss://ws-live-data.polymarket.com/"
 OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
@@ -149,7 +151,6 @@ async def subscribe_orderbook(option: TaskOption):
                             }
                         ]
                     }
-                    print(json.dumps(sub_msg))
 
                     await ws.send(json.dumps(sub_msg))
                     logging.debug(f"已订阅订单簿，slug: {event_slug}, open price: {open_price}")
