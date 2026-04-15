@@ -6,6 +6,17 @@ from typing import Optional
 import time
 import aiohttp
 import logging
+import asyncio
+import paho.mqtt.client as mqtt
+import time
+from paho.mqtt.enums import CallbackAPIVersion
+
+# 配置
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
+MQTT_TOPIC_DATA = "data/topic"
+MQTT_TOPIC_COMPUTE = "compute/topic"
+MQTT_CLIENT_ID = "data_unit"
 
 # 基础配置（输出级别、格式）
 logging.basicConfig(
@@ -46,10 +57,11 @@ class SymbolPrice(object):
         return self.symbols.keys()
 
 class TaskOption(object):
-    def __init__(self, interval: int, symbol: str):
+    def __init__(self, interval: int, symbol: str, mq_client: mqtt.Client):
         self.interval = interval
         self.symbol = symbol
         self.topic = "crypto_prices_chainlink"
+        self.mq_client = mq_client
 
         # cache
         self.cache = {"SLEE": (0, "", ""), "BUY": (0, "", "")}
@@ -250,6 +262,7 @@ async def subscribe_asset_ids(option: TaskOption):
             event_slug = option.getSlug()
 
             asset_ids = await get_asset_ids(event_slug)
+            updown = {asset_ids[0]: "up", asset_ids[1]: "down"}
 
             async with websockets.connect(MARKET_WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -283,6 +296,22 @@ async def subscribe_asset_ids(option: TaskOption):
                             if not isinstance(data, dict):
                                 continue
                             msg_type = data.get("event_type")
+                            if msg_type == "best_bid_ask":
+                                timestamp = data.get('timestamp')
+                                symb = option.getSymbol()
+                                best_bid = data.get("best_bid")
+                                best_ask = data.get("best_ask")
+                                spread = data.get("spread")
+                                asset_id = data.get("asset_id", "")
+                                director = updown.get(asset_id)
+                                msg = f"type: order current: {now} timestamp: {timestamp} symbol: {symb} {option.variant} {director} spread: {spread} bid: {best_bid} ask: {best_ask}"
+                                option.mq_client.publish(
+                                    # 写给 计算进程
+                                    topic=MQTT_TOPIC_COMPUTE,
+                                    payload=msg,
+                                    qos=0
+                                )
+                                continue
                             if msg_type == "price_change":
                                 items = data.get('price_changes', [])
                                 for item in items:
@@ -300,30 +329,51 @@ async def subscribe_asset_ids(option: TaskOption):
             logging.debug("subscribe_orderbook 发生异常:", exc_info=True)
 
 
+# 回调
+def on_connect(client, userdata, flags, rc, properties=None):
+    print(f"连接成功，code: {rc}")
+    client.subscribe(MQTT_TOPIC_DATA)
+
+def on_message(client, userdata, msg):
+    # print(f"\n[异步订阅] 主题: {msg.topic}")
+    print(f"收到消息: {msg.payload.decode('utf-8')}")
+
 
 if __name__ == "__main__":
     async def main():
-        btc5m = TaskOption(Interval_5m, "BTC")
-        btc15m = TaskOption(Interval_15m, "BTC")
-        btcday = TaskOption(Interval_day, "BTC")
+        client = mqtt.Client(
+            callback_api_version=CallbackAPIVersion.VERSION2,
+            client_id=MQTT_CLIENT_ID
+        )
 
-        eth5m = TaskOption(Interval_5m, "ETH")
-        eth15m = TaskOption(Interval_15m, "ETH")
-        ethday = TaskOption(Interval_day, "ETH")
+        client.on_connect = on_connect
+        client.on_message = on_message
 
-        sol5m = TaskOption(Interval_5m, "SOL")
-        sol15m = TaskOption(Interval_15m, "SOL")
+        # ✅ 异步连接（不阻塞）
+        client.connect_async(MQTT_BROKER, MQTT_PORT)
+        client.loop_start()
 
-        xrp5m = TaskOption(Interval_5m, "XRP")
-        xrp15m = TaskOption(Interval_15m, "XRP")
+        btc5m = TaskOption(Interval_5m, "BTC", client)
+        # btc15m = TaskOption(Interval_15m, "BTC")
+        # btcday = TaskOption(Interval_day, "BTC")
 
-        doge5m = TaskOption(Interval_5m, "DOGE")
-        doge15m = TaskOption(Interval_15m, "DOGE")
+        # eth5m = TaskOption(Interval_5m, "ETH")
+        # eth15m = TaskOption(Interval_15m, "ETH")
+        # ethday = TaskOption(Interval_day, "ETH")
+
+        # sol5m = TaskOption(Interval_5m, "SOL")
+        # sol15m = TaskOption(Interval_15m, "SOL")
+
+        # xrp5m = TaskOption(Interval_5m, "XRP")
+        # xrp15m = TaskOption(Interval_15m, "XRP")
+
+        # doge5m = TaskOption(Interval_5m, "DOGE")
+        # doge15m = TaskOption(Interval_15m, "DOGE")
 
         # 同时并发运行多个任务
         await asyncio.gather(
             # BTC
-            subscribe_orderbook(btc5m),
+            # subscribe_orderbook(btc5m),
             subscribe_asset_ids(btc5m),
             # subscribe_orderbook(btc15m),
             # subscribe_asset_ids(btc15m),

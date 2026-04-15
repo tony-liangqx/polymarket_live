@@ -38,5 +38,5 @@ current: 1776233693 symbol: BTC variant: fiveminute start: 1776233400 end: 17762
 ### 2、盘口信息帧
 ```text
 # 数据帧为纯文本
-type: order current: 1776233693 symbol: BTC price: 0.1 DOWN bid: 0 ask: 1
+type: order current: 1776258251 timestamp: 1776258250933 symbol: BTC fiveminute up spread: 0.002 bid: 0.05 ask: 0.052
 ```
