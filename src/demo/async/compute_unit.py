@@ -1,6 +1,7 @@
 import asyncio
 import paho.mqtt.client as mqtt
 import time
+import json
 from paho.mqtt.enums import CallbackAPIVersion
 
 # 配置
@@ -38,11 +39,12 @@ async def main():
 
     while True:
         # 异步发布消息
-        msg = f"计算进程 推送 {time.time()}"
+        # msg = f"计算进程 推送 {time.time()}"
+        msg = {"timestamp": 1776233693, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
         info = client.publish(
             # 写给 数据进程
             topic=MQTT_TOPIC_DATA,
-            payload=msg,
+            payload=json.dumps(msg),
             qos=0
         )
 

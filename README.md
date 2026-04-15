@@ -44,7 +44,7 @@ type: order current: 1776258251 timestamp: 1776258250933 symbol: BTC fiveminute 
 ## 客户处理 `==>` 数据服务
 ### 1、信息帧
 ```text
-xxx
+{"timestamp": 1776233693, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
 ```
 
 ### 2、信息帧
