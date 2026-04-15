@@ -354,8 +354,8 @@ if __name__ == "__main__":
         client.loop_start()
 
         btc5m = TaskOption(Interval_5m, "BTC", client)
-        # btc15m = TaskOption(Interval_15m, "BTC")
-        # btcday = TaskOption(Interval_day, "BTC")
+        btc15m = TaskOption(Interval_15m, "BTC", client)
+        btcday = TaskOption(Interval_day, "BTC", client)
 
         # eth5m = TaskOption(Interval_5m, "ETH")
         # eth15m = TaskOption(Interval_15m, "ETH")
@@ -373,12 +373,12 @@ if __name__ == "__main__":
         # 同时并发运行多个任务
         await asyncio.gather(
             # BTC
-            # subscribe_orderbook(btc5m),
+            subscribe_orderbook(btc5m),
             subscribe_asset_ids(btc5m),
-            # subscribe_orderbook(btc15m),
-            # subscribe_asset_ids(btc15m),
-            # subscribe_orderbook(btcday),
-            # subscribe_asset_ids(btcday),
+            subscribe_orderbook(btc15m),
+            subscribe_asset_ids(btc15m),
+            subscribe_orderbook(btcday),
+            subscribe_asset_ids(btcday),
 
             # # eth
             # subscribe_orderbook(eth5m),
