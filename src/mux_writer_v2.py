@@ -236,10 +236,6 @@ async def subscribe_orderbook(option: TaskOption):
                                 outcome = payload.get("outcome")
                                 order_price = payload.get("price")
                                 side = payload.get("side")
-                                if side == "BUY":
-                                    side = "Up"
-                                elif side == "SELL":
-                                    side = "Down"
                                 size = payload.get("size")
                             else:
                                 continue
@@ -250,7 +246,18 @@ async def subscribe_orderbook(option: TaskOption):
                             if timestamp - ts > 1:
                                 bid = "NaN"
                                 ask = "NaN"
-                            print(f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} {side}_bid: {bid} {side}_ask: {ask}")
+                            # 统一名称
+                            if side == "BUY":
+                                side = "Up"
+                            elif side == "SELL":
+                                side = "Down"
+                            msg = f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} direction: {side} bid: {bid} ask: {ask}"
+                            option.mq_client.publish(
+                                # 写给 计算进程
+                                topic=MQTT_TOPIC_COMPUTE,
+                                payload=msg,
+                                qos=0
+                            )
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                             logging.debug("receive_with_timeout 发生异常:", exc_info=True)
                             continue
@@ -270,15 +277,18 @@ async def get_asset_ids(slug) -> list[str]:
             )
     url = MARKET_URL + slug
     while True:
-        logging.debug(f"{url}")
-        async with HTTP_SESSION.get(url) as resp:
-            data = await resp.json()
-            ids_raw = data.get("clobTokenIds")
-            if ids_raw is None:
-                await asyncio.sleep(1)
-                continue
-            asset_ids = json.loads(ids_raw)
-            return asset_ids
+        try:
+            async with HTTP_SESSION.get(url) as resp:
+                data = await resp.json()
+                ids_raw = data.get("clobTokenIds")
+                if ids_raw is None:
+                    await asyncio.sleep(1)
+                    continue
+                asset_ids = json.loads(ids_raw)
+                return asset_ids
+        except Exception:
+            logging.debug(f"fetch {url} error")
+            raise Exception(f"fetch {url} error")
 
 async def subscribe_asset_ids(option: TaskOption):
     # 网络重连循环
@@ -288,7 +298,7 @@ async def subscribe_asset_ids(option: TaskOption):
             event_slug = option.getSlug()
 
             asset_ids = await get_asset_ids(event_slug)
-            updown = {asset_ids[0]: "up", asset_ids[1]: "down"}
+            updown = {asset_ids[0]: "Up", asset_ids[1]: "Down"}
 
             async with websockets.connect(MARKET_WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -330,7 +340,7 @@ async def subscribe_asset_ids(option: TaskOption):
                                 spread = data.get("spread")
                                 asset_id = data.get("asset_id", "")
                                 director = updown.get(asset_id)
-                                msg = f"type: order current: {now} timestamp: {timestamp} symbol: {symb} {option.variant} {director} spread: {spread} bid: {best_bid} ask: {best_ask}"
+                                msg = f"type: order current: {now} timestamp: {timestamp} symbol: {symb} {option.variant} direction: {director} spread: {spread} bid: {best_bid} ask: {best_ask}"
                                 option.mq_client.publish(
                                     # 写给 计算进程
                                     topic=MQTT_TOPIC_COMPUTE,
@@ -346,17 +356,13 @@ async def subscribe_asset_ids(option: TaskOption):
                                         continue
                                     timestamp = int(timestamp) // 1000
                                     side = item.get("side")
-                                    if side == "BUY":
-                                        side = "Up"
-                                    elif side == "SELL":
-                                        side = "Down"
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
                                     option.setValue(timestamp, side, best_bid, best_ask)
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)
         except Exception:
-            logging.debug("subscribe_orderbook 发生异常:", exc_info=True)
+            logging.debug("subscribe_asset_ids 发生异常:", exc_info=True)
 
 
 # 回调
@@ -396,13 +402,9 @@ if __name__ == "__main__":
             client_id=MQTT_CLIENT_ID
         )
 
-        # ✅ 异步连接（不阻塞）
-        client.connect_async(MQTT_BROKER, MQTT_PORT)
-        client.loop_start()
-
         btc5m = TaskOption(Interval_5m, "BTC", client)
-        btc15m = TaskOption(Interval_15m, "BTC", client)
-        btcday = TaskOption(Interval_day, "BTC", client)
+        # btc15m = TaskOption(Interval_15m, "BTC", client)
+        # btcday = TaskOption(Interval_day, "BTC", client)
 
         # eth5m = TaskOption(Interval_5m, "ETH")
         # eth15m = TaskOption(Interval_15m, "ETH")
@@ -419,22 +421,26 @@ if __name__ == "__main__":
 
         task_options = {
             btc5m.getSlug(): btc5m,
-            btc15m.getSlug(): btc15m,
-            btcday.getSlug(): btcday,
+            # btc15m.getSlug(): btc15m,
+            # btcday.getSlug(): btcday,
         }
 
         client.on_connect = on_connect
         client.on_message = get_on_message_func(task_options)
+
+        # ✅ 异步连接（不阻塞）
+        client.connect_async(MQTT_BROKER, MQTT_PORT)
+        client.loop_start()
 
         # 同时并发运行多个任务
         await asyncio.gather(
             # BTC
             subscribe_orderbook(btc5m),
             subscribe_asset_ids(btc5m),
-            subscribe_orderbook(btc15m),
-            subscribe_asset_ids(btc15m),
-            subscribe_orderbook(btcday),
-            subscribe_asset_ids(btcday),
+            # subscribe_orderbook(btc15m),
+            # subscribe_asset_ids(btc15m),
+            # subscribe_orderbook(btcday),
+            # subscribe_asset_ids(btcday),
 
             # # eth
             # subscribe_orderbook(eth5m),
