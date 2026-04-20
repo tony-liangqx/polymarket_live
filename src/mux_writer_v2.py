@@ -338,6 +338,9 @@ def on_connect(client, userdata, flags, rc, properties=None):
 def on_message(client, userdata, msg):
     print(f"\n主题: {msg.topic}")
     print(f"收到消息: {msg.payload.decode('utf-8')}")
+    # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
+    data = json.loads(msg.payload.decode('utf-8'))
+
 
 def order_handler():
     pass
