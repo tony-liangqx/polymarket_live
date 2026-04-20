@@ -271,7 +271,7 @@ async def subscribe_orderbook(option: TaskOption):
                                 side = "Up"
                             elif side == "SELL":
                                 side = "Down"
-                            msg = f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open: {open_price} coin_price: {coin_price} direction: {side} bid: {bid} ask: {ask}"
+                            msg = f"current: {timestamp} symbol: {option.getSymbol()} variant: {option.variant} start: {start_time} end: {end_time} open_price: {open_price} coin_price: {coin_price} direction: {side} bid: {bid} ask: {ask}"
                             option.mq_client.publish(
                                 # 写给 计算进程
                                 topic=MQTT_TOPIC_COMPUTE,
@@ -397,7 +397,7 @@ def get_on_message_func(options: dict[str, TaskOption]):
         print(f"\n主题: {msg.topic}")
         print(f"收到消息: {msg.payload.decode('utf-8')}")
         # TODO:: 接受的信息中需要携带 slug 信息
-        # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT", "interval": "5m/15m/1d", "bid": float, "ask": float, "direction": "Up/Down"}
+        # {"timestamp": 1776233693000, "symbol": "BTCUSDT", "interval": "5m/15m/1d", "bid": float, "ask": float, "direction": "Up/Down"}
         data = json.loads(msg.payload.decode('utf-8'))
         timestamp = data.get("timestamp", None)
         if timestamp is None:
@@ -418,18 +418,20 @@ def get_on_message_func(options: dict[str, TaskOption]):
         if direction is None:
             return
         slug = f"{symbol}{interval}"
-        option = options.get(data["slug"], None)
+        option = options.get(slug, None)
         if option is None:
             logging.debug(f"om_message: 未知slug: {slug}")
             return
         last_order_time = option.getOrderTime()
         option.setOrderTime(timestamp)
         if last_order_time + 1000 < timestamp:
+            print("过期")
             return
         # TODO::
         # Cancel()
         # Buy(token_id: str, price: float, size: float)
         print("post action")
+    return on_message
 
 if __name__ == "__main__":
     async def main():
