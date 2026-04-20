@@ -1,5 +1,6 @@
 import asyncio
 import json
+from web3.types import Timestamp
 import websockets
 from datetime import datetime, timezone
 from typing import Optional
@@ -84,6 +85,7 @@ class TaskOption(object):
         self.symbol = symbol
         self.topic = "crypto_prices_chainlink"
         self.mq_client = mq_client
+        self.order_time = 0
 
         # cache
         self.cache = {"SLEE": (0, "", ""), "BUY": (0, "", "")}
@@ -142,6 +144,24 @@ class TaskOption(object):
 
     def getValue(self, side) -> tuple[int, str, str]:
         return self.cache[side]
+
+    def getKey(self) -> str:
+        variant: str
+        if self.variant == "fiveminute":
+            variant  = "5m"
+        elif self.variant == "fifteen":
+            variant = "15m"
+        elif self.variant == "daily":
+            variant = "1d"
+        else:
+            raise Exception("interval type error")
+        return self.symbol + "USDT" + variant
+
+    def setOrderTime(self, timestamp: int):
+        self.order_time = timestamp
+
+    def getOrderTime(self) -> int:
+        return self.order_time
 
 async def fetch_open_price(url):
     global HTTP_SESSION
@@ -377,23 +397,39 @@ def get_on_message_func(options: dict[str, TaskOption]):
         print(f"\n主题: {msg.topic}")
         print(f"收到消息: {msg.payload.decode('utf-8')}")
         # TODO:: 接受的信息中需要携带 slug 信息
-        # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
+        # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT", "interval": "5m/15m/1d", "bid": float, "ask": float, "direction": "Up/Down"}
         data = json.loads(msg.payload.decode('utf-8'))
-        slug = data.get("slug", None)
-        if slug is None:
-            logging.debug("om_message: 缺失slug")
+        timestamp = data.get("timestamp", None)
+        if timestamp is None:
             return
+        symbol = data.get("symbol", None)
+        if symbol is None:
+            return
+        interval = data.get("interval", None)
+        if interval is None:
+            return
+        bid = data.get("bid", None)
+        if bid is None:
+            return
+        ask = data.get("ask", None)
+        if ask is None:
+            return
+        direction = data.get("direction", None)
+        if direction is None:
+            return
+        slug = f"{symbol}{interval}"
         option = options.get(data["slug"], None)
         if option is None:
             logging.debug(f"om_message: 未知slug: {slug}")
             return
+        last_order_time = option.getOrderTime()
+        option.setOrderTime(timestamp)
+        if last_order_time + 1000 < timestamp:
+            return
         # TODO::
         # Cancel()
         # Buy(token_id: str, price: float, size: float)
-    return on_message
-
-def order_handler():
-    pass
+        print("post action")
 
 if __name__ == "__main__":
     async def main():
@@ -420,9 +456,9 @@ if __name__ == "__main__":
         # doge15m = TaskOption(Interval_15m, "DOGE")
 
         task_options = {
-            btc5m.getSlug(): btc5m,
-            # btc15m.getSlug(): btc15m,
-            # btcday.getSlug(): btcday,
+            btc5m.getKey(): btc5m,
+            # btc15m.getKey(): btc15m,
+            # btcday.getKey(): btcday,
         }
 
         client.on_connect = on_connect
