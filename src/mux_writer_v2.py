@@ -236,6 +236,10 @@ async def subscribe_orderbook(option: TaskOption):
                                 outcome = payload.get("outcome")
                                 order_price = payload.get("price")
                                 side = payload.get("side")
+                                if side == "BUY":
+                                    side = "Up"
+                                elif side == "SELL":
+                                    side = "Down"
                                 size = payload.get("size")
                             else:
                                 continue
@@ -342,6 +346,10 @@ async def subscribe_asset_ids(option: TaskOption):
                                         continue
                                     timestamp = int(timestamp) // 1000
                                     side = item.get("side")
+                                    if side == "BUY":
+                                        side = "Up"
+                                    elif side == "SELL":
+                                        side = "Down"
                                     best_bid = item.get("best_bid")
                                     best_ask = item.get("best_ask")
                                     option.setValue(timestamp, side, best_bid, best_ask)
