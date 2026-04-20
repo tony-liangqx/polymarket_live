@@ -334,10 +334,13 @@ def on_connect(client, userdata, flags, rc, properties=None):
     print(f"连接成功，code: {rc}")
     client.subscribe(MQTT_TOPIC_DATA)
 
+# 计算单元推送的信息
 def on_message(client, userdata, msg):
-    # print(f"\n[异步订阅] 主题: {msg.topic}")
+    print(f"\n主题: {msg.topic}")
     print(f"收到消息: {msg.payload.decode('utf-8')}")
 
+def order_handler():
+    pass
 
 if __name__ == "__main__":
     async def main():

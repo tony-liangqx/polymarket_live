@@ -1,0 +1,5 @@
+src/metamask_dict.json
+src/relayer_dict.json
+.DS_Store
+src/logs/polymarket_position.log
+src/__pycache__/position_manager.cpython-314.pyc
