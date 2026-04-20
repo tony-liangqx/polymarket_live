@@ -10,6 +10,9 @@ import asyncio
 import paho.mqtt.client as mqtt
 import time
 from paho.mqtt.enums import CallbackAPIVersion
+from py_clob_client.clob_types import OrderArgs, OrderType
+import setting
+
 
 # 配置
 MQTT_BROKER = "localhost"
@@ -37,6 +40,25 @@ OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol
 Interval_5m = 300
 Interval_15m = 900
 Interval_day = 86400
+
+#
+# @price: 你愿意支付的价格
+# @size: 买入数量
+#
+def Buy(token_id: str, price: float, size: float):
+    buy_order_args = OrderArgs(
+        price=price, # 你愿意支付的价格
+        size=size,  # 买入数量
+        side="BUY",
+        token_id=token_id
+    )
+    signed_order = setting.TRADE_CLIENT.create_order(buy_order_args)
+    resp = setting.TRADE_CLIENT.post_order(signed_order, orderType=OrderType.GTC) # type: ignore
+    return resp
+
+
+def Cancel():
+    return setting.TRADE_CLIENT.cancel_all()
 
 # type: ignore
 HTTP_SESSION: Optional[aiohttp.ClientSession] = None
@@ -334,13 +356,27 @@ def on_connect(client, userdata, flags, rc, properties=None):
     print(f"连接成功，code: {rc}")
     client.subscribe(MQTT_TOPIC_DATA)
 
-# 计算单元推送的信息
-def on_message(client, userdata, msg):
-    print(f"\n主题: {msg.topic}")
-    print(f"收到消息: {msg.payload.decode('utf-8')}")
-    # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
-    data = json.loads(msg.payload.decode('utf-8'))
 
+
+def get_on_message_func(options: dict[str, TaskOption]):
+    # 计算单元推送的信息
+    def on_message(client, userdata, msg):
+        print(f"\n主题: {msg.topic}")
+        print(f"收到消息: {msg.payload.decode('utf-8')}")
+        # TODO:: 接受的信息中需要携带 slug 信息
+        # {"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
+        data = json.loads(msg.payload.decode('utf-8'))
+        slug = data.get("slug", None)
+        if slug is None:
+            logging.debug("om_message: 缺失slug")
+            return
+        option = options.get(data["slug"], None)
+        if option is None:
+            logging.debug(f"om_message: 未知slug: {slug}")
+            return
+        # TODO::
+        # Buy(token_id: str, price: float, size: float)
+    return on_message
 
 def order_handler():
     pass
@@ -351,9 +387,6 @@ if __name__ == "__main__":
             callback_api_version=CallbackAPIVersion.VERSION2,
             client_id=MQTT_CLIENT_ID
         )
-
-        client.on_connect = on_connect
-        client.on_message = on_message
 
         # ✅ 异步连接（不阻塞）
         client.connect_async(MQTT_BROKER, MQTT_PORT)
@@ -375,6 +408,15 @@ if __name__ == "__main__":
 
         # doge5m = TaskOption(Interval_5m, "DOGE")
         # doge15m = TaskOption(Interval_15m, "DOGE")
+
+        task_options = {
+            btc5m.getSlug(): btc5m,
+            btc15m.getSlug(): btc15m,
+            btcday.getSlug(): btcday,
+        }
+
+        client.on_connect = on_connect
+        client.on_message = get_on_message_func(task_options)
 
         # 同时并发运行多个任务
         await asyncio.gather(
