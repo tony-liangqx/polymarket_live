@@ -357,7 +357,6 @@ def on_connect(client, userdata, flags, rc, properties=None):
     client.subscribe(MQTT_TOPIC_DATA)
 
 
-
 def get_on_message_func(options: dict[str, TaskOption]):
     # 计算单元推送的信息
     def on_message(client, userdata, msg):
@@ -375,6 +374,7 @@ def get_on_message_func(options: dict[str, TaskOption]):
             logging.debug(f"om_message: 未知slug: {slug}")
             return
         # TODO::
+        # Cancel()
         # Buy(token_id: str, price: float, size: float)
     return on_message
 
