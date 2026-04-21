@@ -6,6 +6,8 @@ from py_clob_client.client import ClobClient
 # =========================
 # 1. 配置参数
 # =========================
+#
+ORDER_SIZE:int = 10
 with open('metamask_dict.json', 'r') as f:
     METAMASK_DICT = json.load(f)
     PRIVATE_KEY = METAMASK_DICT['api_key']

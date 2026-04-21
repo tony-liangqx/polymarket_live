@@ -46,11 +46,26 @@ Interval_day = 86400
 # @price: 你愿意支付的价格
 # @size: 买入数量
 #
-def Buy(token_id: str, price: float, size: float):
+def Buy(token_id: str, price: float, size: int):
     buy_order_args = OrderArgs(
         price=price, # 你愿意支付的价格
         size=size,  # 买入数量
         side="BUY",
+        token_id=token_id
+    )
+    signed_order = setting.TRADE_CLIENT.create_order(buy_order_args)
+    resp = setting.TRADE_CLIENT.post_order(signed_order, orderType=OrderType.GTC) # type: ignore
+    return resp
+
+#
+# @price: 你愿意支付的价格
+# @size: 卖出数量
+#
+def Sell(token_id: str, price: float, size: int):
+    buy_order_args = OrderArgs(
+        price=price, # 你愿意支付的价格
+        size=size,  # 买入数量
+        side="SELL",
         token_id=token_id
     )
     signed_order = setting.TRADE_CLIENT.create_order(buy_order_args)
@@ -86,6 +101,8 @@ class TaskOption(object):
         self.topic = "crypto_prices_chainlink"
         self.mq_client = mq_client
         self.order_time = 0
+        self.yesTokenId = ""
+        self.noTokenId = ""
 
         # cache
         self.cache = {"SLEE": (0, "", ""), "BUY": (0, "", "")}
@@ -162,6 +179,18 @@ class TaskOption(object):
 
     def getOrderTime(self) -> int:
         return self.order_time
+
+    def setNoTokenId(self, token_id: str):
+        self.noTokenId = token_id
+
+    def getNoTokenId(self) -> str:
+        return self.noTokenId
+
+    def setYesTokenId(self, token_id: str):
+        self.yesTokenId = token_id
+
+    def getYesTokenId(self) -> str:
+        return self.yesTokenId
 
 async def fetch_open_price(url):
     global HTTP_SESSION
@@ -320,6 +349,8 @@ async def subscribe_asset_ids(option: TaskOption):
 
             asset_ids = await get_asset_ids(event_slug)
             updown = {asset_ids[0]: "Up", asset_ids[1]: "Down"}
+            option.setYesTokenId(asset_ids[0])
+            option.setNoTokenId(asset_ids[1])
 
             async with websockets.connect(MARKET_WS_URL, ping_interval=20, ping_timeout=120) as ws:
                 logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 已连接 CLOB Market WebSocket")
@@ -430,7 +461,12 @@ def get_on_message_func(options: dict[str, TaskOption]):
             return
         # TODO::
         # Cancel()
-        # Buy(token_id: str, price: float, size: float)
+        if ask is not None and ask != 0:
+            # 卖
+            Sell(option.getNoTokenId(), ask, setting.ORDER_SIZE)
+        elif bid is not None and bid != 0:
+            # 买
+            Buy(option.getYesTokenId(), bid, setting.ORDER_SIZE)
         print("post action")
     return on_message
 
