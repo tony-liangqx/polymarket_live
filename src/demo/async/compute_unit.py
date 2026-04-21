@@ -40,7 +40,7 @@ async def main():
     while True:
         # 异步发布消息
         # msg = f"计算进程 推送 {time.time()}"
-        msg = {"timestamp": 1776233693, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
+        msg = {"timestamp": 1776233693000, "symbol": "BTCUSDT", "interval": "5m", "bid": 0.5, "ask": 0.5, "direction": "Up"}
         info = client.publish(
             # 写给 数据进程
             topic=MQTT_TOPIC_DATA,
