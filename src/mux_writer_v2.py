@@ -440,10 +440,10 @@ def get_on_message_func(options: dict[str, TaskOption]):
         interval = data.get("interval", None)
         if interval is None:
             return
-        bid = data.get("bid", None)
+        bid = data.get("bid", 0)
         if bid is None:
             return
-        ask = data.get("ask", None)
+        ask = data.get("ask", 0)
         if ask is None:
             return
         direction = data.get("direction", None)
@@ -461,10 +461,10 @@ def get_on_message_func(options: dict[str, TaskOption]):
             return
         # TODO::
         # Cancel()
-        if ask is not None and ask != 0:
+        if ask > 0:
             # 卖
             Sell(option.getNoTokenId(), ask, setting.ORDER_SIZE)
-        elif bid is not None and bid != 0:
+        elif bid > 0:
             # 买
             Buy(option.getYesTokenId(), bid, setting.ORDER_SIZE)
         print("post action")
