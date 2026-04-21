@@ -279,9 +279,10 @@ async def subscribe_orderbook(option: TaskOption):
                                 qos=0
                             )
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
-                            logging.debug("receive_with_timeout 发生异常:", exc_info=True)
+                            logging.debug("receive_with_timeout 发生异常")
                             continue
                         except websockets.exceptions.ConnectionClosedError as e:
+                            # raise是为了推出循环实现重连
                             raise e
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)

@@ -1,7 +1,54 @@
 # 依赖
-
+## python库
 ```
-pip install asyncio websockets requests
+pip install asyncio websockets requests py_clob_client paho-mqtt
+```
+
+## 中间件： mqtt
+windows的安装：
+```
+官网下载页：https://mosquitto.org/download/
+最新稳定版（2026-04）：
+64 位：mosquitto-2.0.15-install-windows-x64.exe
+32 位：mosquitto-2.0.15-install-windows-x32.exe
+```
+
+ubuntu的安装：
+```
+sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa
+sudo apt-get update
+```
+
+### mqtt的配置
+linux常见配置路径`/etc/mosquitto/mosquitto.conf`
+```
+# 监听端口
+listener 1883
+
+# 最大连接数
+max_connections 500
+
+## 自动生成持久化文件（消息队列、订阅信息）
+#persistence true
+#persistence_file mosquitto.db
+#persistence_location ./
+
+# 日志输出
+log_dest stdout
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+# 允许匿名访问（开发测试用，生产建议关闭）
+allow_anonymous true
+
+# 客户端心跳超时（秒）
+#keepalive_interval 60
+
+# 消息队列大小
+max_inflight_messages 100
+max_queued_messages 100
 ```
 
 # 使用
@@ -42,13 +89,7 @@ type: order current: 1776258251 timestamp: 1776258250933 symbol: BTC fiveminute 
 ```
 
 ## 客户处理 `==>` 数据服务
-### 1、信息帧
+### 订单任务帧
 ```text
-{"timestamp": 1776233693000, "prob_up": 0.5, "prob_down": 0.5, "symbol": "BTCUSDT"}
-```
-
-### 2、信息帧
-```text
-# 数据帧为纯文本
-xxx
+{"timestamp": 1776233693000, "symbol": "BTCUSDT", "interval": "5m", "bid": 0.5, "ask": 0.5, "direction": "Up"}
 ```
