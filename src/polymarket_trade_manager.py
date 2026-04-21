@@ -37,6 +37,8 @@ def compute_signal():
     print("当前参数:", latest_params)
     symbol = "BTCUSDT"
     direction = latest_params.get("direction", None)
+    if direction is None:
+        return {}
     best_bid = latest_params.get("bid", 0)
     best_ask = latest_params.get("ask", 0)
     spread = latest_params.get("spread", 0)
