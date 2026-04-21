@@ -450,9 +450,11 @@ def get_on_message_func(options: dict[str, TaskOption]):
         if option is None:
             logging.debug(f"om_message: 未知slug: {slug}")
             return
-        last_order_time = option.getOrderTime()
-        option.setOrderTime(timestamp)
-        if last_order_time + 1000 < timestamp:
+        # 上一次操作的时间
+        # last_order_time = option.getOrderTime()
+        # option.setOrderTime(timestamp)
+        now = int(time.time()) * 1000
+        if timestamp + 1000 < now:
             print("过期")
             return
         # TODO::
