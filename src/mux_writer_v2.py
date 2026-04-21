@@ -441,11 +441,7 @@ def get_on_message_func(options: dict[str, TaskOption]):
         if interval is None:
             return
         bid = data.get("bid", 0)
-        if bid is None:
-            return
         ask = data.get("ask", 0)
-        if ask is None:
-            return
         direction = data.get("direction", None)
         if direction is None:
             return
