@@ -343,7 +343,6 @@ async def get_asset_ids(slug) -> list[str]:
                 url = PARENT_MARKET_URL + asset_ids[0]
                 async with HTTP_SESSION.get(url) as resp:
                     data = await resp.json()
-                    print(data)
                     primary_token_id = data.get("primary_token_id", None)
                     if primary_token_id is None:
                         await asyncio.sleep(1)
@@ -352,7 +351,6 @@ async def get_asset_ids(slug) -> list[str]:
                     if secondary_token_id is None:
                         await asyncio.sleep(1)
                         continue
-                    print((primary_token_id,secondary_token_id))
                     return [primary_token_id,secondary_token_id]
         except Exception:
             logging.debug(f"get_asset_ids error: {url}")
