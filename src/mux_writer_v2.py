@@ -34,6 +34,7 @@ logging.disable(logging.CRITICAL + 1)
 WS_URL = "wss://ws-live-data.polymarket.com/"
 MARKET_WS_URL = "wss://ws-subscriptions-frontend-clob.polymarket.com/ws/market"
 MARKET_URL = f"https://gamma-api.polymarket.com/markets/slug/"
+PARENT_MARKET_URL = f"https://clob.polymarket.com/markets-by-token/"
 OPEN_PRICE_URL_TEMPLATE = "https://polymarket.com/api/crypto/crypto-price?symbol=%s&eventStartTime=%s&variant=%s&endDate=%s"
 
 
@@ -335,10 +336,27 @@ async def get_asset_ids(slug) -> list[str]:
                     await asyncio.sleep(1)
                     continue
                 asset_ids = json.loads(ids_raw)
-                return asset_ids
+                if len(asset_ids) != 2:
+                    await asyncio.sleep(1)
+                    continue
+                print(asset_ids)
+                url = PARENT_MARKET_URL + asset_ids[0]
+                async with HTTP_SESSION.get(url) as resp:
+                    data = await resp.json()
+                    print(data)
+                    primary_token_id = data.get("primary_token_id", None)
+                    if primary_token_id is None:
+                        await asyncio.sleep(1)
+                        continue
+                    secondary_token_id = data.get("secondary_token_id", None)
+                    if secondary_token_id is None:
+                        await asyncio.sleep(1)
+                        continue
+                    print((primary_token_id,secondary_token_id))
+                    return [primary_token_id,secondary_token_id]
         except Exception:
-            logging.debug(f"fetch {url} error")
-            raise Exception(f"fetch {url} error")
+            logging.debug(f"get_asset_ids error: {url}")
+            raise Exception(f"get_asset_ids error: {url}")
 
 async def subscribe_asset_ids(option: TaskOption):
     # 网络重连循环
