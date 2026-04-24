@@ -80,6 +80,9 @@ def Cancel():
 # type: ignore
 HTTP_SESSION: Optional[aiohttp.ClientSession] = None
 
+class BreakLoop(Exception):
+    pass
+
 class SymbolPrice(object):
     def __init__(self, *symbs:str):
         self.symbols = {}
@@ -270,6 +273,7 @@ async def subscribe_orderbook(option: TaskOption):
                             order_price = "-"
                             side = "-"
                             size = "-"
+                            print(data)
                             msg_type = data.get("type")
                             if msg_type == "update":
                                 payload = data.get("payload")
@@ -339,7 +343,6 @@ async def get_asset_ids(slug) -> list[str]:
                 if len(asset_ids) != 2:
                     await asyncio.sleep(1)
                     continue
-                print(asset_ids)
                 url = PARENT_MARKET_URL + asset_ids[0]
                 async with HTTP_SESSION.get(url) as resp:
                     data = await resp.json()
@@ -390,7 +393,7 @@ async def subscribe_asset_ids(option: TaskOption):
                             # 判断是否结束，开始新的订阅
                             event_slug = option.getSlug()
                             logging.debug(f"⏰ 切换到新的 slug: {event_slug}")
-                            break
+                            raise BreakLoop()
                         try:
                             data = await receive_with_timeout(ws, timeout)
                         except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
@@ -429,6 +432,8 @@ async def subscribe_asset_ids(option: TaskOption):
                                     option.setValue(timestamp, side, best_bid, best_ask)
                         except Exception:
                             logging.debug("data 发生异常:", exc_info=True)
+        except BreakLoop:
+            pass
         except Exception:
             logging.debug("subscribe_asset_ids 发生异常:", exc_info=True)
 
@@ -458,13 +463,19 @@ def get_on_message_func(options: dict[str, TaskOption]):
             return
         bid = data.get("bid", 0)
         ask = data.get("ask", 0)
-        direction = data.get("direction", None)
-        if direction is None:
-            return
         slug = f"{symbol}{interval}"
         option = options.get(slug, None)
         if option is None:
             logging.debug(f"om_message: 未知slug: {slug}")
+            return
+        direction = data.get("direction", None)
+        if direction is None:
+            return
+        if direction == "Up":
+            token = option.getYesTokenId()
+        elif direction == "Down":
+            token = option.getNoTokenId()
+        else:
             return
         # 上一次操作的时间
         # last_order_time = option.getOrderTime()
@@ -477,10 +488,10 @@ def get_on_message_func(options: dict[str, TaskOption]):
         # Cancel()
         if ask > 0:
             # 卖
-            Sell(option.getNoTokenId(), ask, setting.ORDER_SIZE)
+            Sell(token, ask, setting.ORDER_SIZE)
         elif bid > 0:
             # 买
-            Buy(option.getYesTokenId(), bid, setting.ORDER_SIZE)
+            Buy(token, bid, setting.ORDER_SIZE)
         print("post action")
     return on_message
 
